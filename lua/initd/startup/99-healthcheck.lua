@@ -33,7 +33,7 @@ local function startup_healthcheck(premature, mod, opts)
   opts.timeout     = CONFIG:get("healthcheck.timeout")
   opts.fall        = CONFIG:get("healthcheck.fall")
   opts.rise        = CONFIG:get("healthcheck.rise")
-  opts.concurrency = 20
+  opts.concurrency = 100
 
   for _, service in pairs(upstreams)
   do
