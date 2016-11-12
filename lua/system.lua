@@ -1,5 +1,5 @@
 _M = {
-  _VERSION = 1.0,
+  _VERSION = 1.0.0,
 
   signal = {
     SIGHUP  = 1,
