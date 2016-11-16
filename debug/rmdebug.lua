@@ -3,17 +3,17 @@ local _M = {
 }
 
 local debugger = require "mobdebug"
-local addr
+local dbg_addr
 
 function _M.init(addr)
-  addr = addr
+  dbg_addr = addr
 end
 
 function _M.start()
-  if not addr then
-    addr = ngx.var.remote_addr
+  if not dbg_addr then
+    dbg_addr = ngx.var.remote_addr
   end
-  debugger.start(addr)
+  debugger.start(dbg_addr)
 end
 
 function _M.stop()
