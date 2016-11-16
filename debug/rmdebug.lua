@@ -14,6 +14,7 @@ function _M.start()
     dbg_addr = ngx.var.remote_addr
   end
   debugger.start(dbg_addr)
+  debugger.on()
 end
 
 function _M.stop()
