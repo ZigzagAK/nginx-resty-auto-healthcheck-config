@@ -1,3 +1,5 @@
+local debugger = nil
+
 local _M = {
   _VERSION= "1.0.0"
 }
@@ -14,7 +16,14 @@ function _M.start()
     dbg_addr = ngx.var.remote_addr
   end
   debugger.start(dbg_addr)
+end
+
+function _M.on()
   debugger.on()
+end
+
+function _M.off()
+  debugger.off()
 end
 
 function _M.stop()
