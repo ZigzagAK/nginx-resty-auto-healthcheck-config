@@ -71,7 +71,7 @@ local _get_upstreams = { http = dynamic_upstream.get_upstreams,
                                   end
                        }
 
-local _get_servers   = { http = dynamic_upstream.get_servers,
+local _get_peers     = { http = dynamic_upstream.get_peers,
                          stream = function(upstream)
                                     local peers = {}
                                     local pp = stream_upstream.get_primary_peers(upstream)
@@ -96,12 +96,12 @@ local _get_servers   = { http = dynamic_upstream.get_servers,
 
 local http_module = { set_peer_down = _set_peer_down.http,
                       get_upstreams = _get_upstreams.http,
-                      get_servers   = _get_servers.http
+                      get_peers     = _get_peers.http
                     }
 
 local stream_module = { set_peer_down = _set_peer_down.stream,
                         get_upstreams = _get_upstreams.stream,
-                        get_servers   = _get_servers.stream
+                        get_peers     = _get_peers.stream
                       }
 
 local function set_peers_down(module)
@@ -113,7 +113,7 @@ local function set_peers_down(module)
 
   for _, service in pairs(upstreams)
   do
-    local ok, servers, err = module.get_servers(service)
+    local ok, servers, err = module.get_peers(service)
     if ok then
       for _, server in pairs(servers)
       do
