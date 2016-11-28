@@ -1,10 +1,16 @@
-access_by_lua_block {
+local _M = {
+  _VERSION = "1.0.0"
+}
+
+function _M.process()
   local debug = ngx.req.get_headers().debug
+
   if not debug or not debug:match("^[1yY]$") then
     return
   end
 
   local ok, r = pcall(require, "rmdebug")
+  
   if not ok then
     ngx.log(ngx.WARN, "rmdebug load failed: " .. r)
     return
@@ -18,10 +24,6 @@ access_by_lua_block {
   }
 
   ngx.ctx.DEBUG.start()
-}
+end
 
-log_by_lua_block {
-  if ngx.ctx.DEBUG then
-    ngx.ctx.DEBUG.stop()
-  end
-}
+return _M
