@@ -3,19 +3,18 @@ local _M = {
 }
 
 local upstream = require "ngx.dynamic_upstream"
+local cjson = require "cjson"
 
 local STAT   = ngx.shared.stat
 local CONFIG = ngx.shared.config
 
-local cache = {}
-
 local gsub_uri = CONFIG:get("http.stat.gsub_uri")
 
 if gsub_uri then
-  local package, func = gsub_uri:match("(.+)%.(.+)$")
-  local ok, mod = pcall(require, package)
+  local gsub_mod_name, gsub_mod_func = gsub_uri:match("(.+)%.(.+)$")
+  local ok, gsub_mod = pcall(require, gsub_mod_name)
   if ok then
-    gsub_uri = mod[func]
+    gsub_uri = gsub_mod[gsub_mod_func]
   end
   if not gsub_uri then
     ngx.log(ngx.ERR, CONFIG:get("http.stat.gsub_uri") .. " is not found")
@@ -26,6 +25,8 @@ local ok, upstreams, err = upstream.get_upstreams()
 if not ok then
   ngx.log(ngx.WARN, "Can't get upstream list")
 end
+
+local cache = {}
 
 local function get_upstream(addr)
   local u = cache[addr]
@@ -66,10 +67,10 @@ local function accum_upstream_stat()
 
   local u = get_upstream(upstream_addr)
 
-  local key = u .. ":" .. ngx.var.upstream_status .. ":" .. upstream_addr
+  local key = u .. "|" .. ngx.var.upstream_status .. "|" .. upstream_addr
 
-  STAT:incr("upstream_status:"  .. key, 1, 0)                              -- upstream request count by status
-  STAT:incr("upstream_latency:" .. key, ngx.var.upstream_response_time, 0) -- upstream total latency by status
+  STAT:incr("upstream_n:" .. key, 1, 0)                              -- upstream request count by status
+  STAT:incr("upstream_t:" .. key, ngx.var.upstream_response_time, 0) -- upstream total latency by status
 end
 
 local function accum_uri_stat()
@@ -79,10 +80,10 @@ local function accum_uri_stat()
     uri = gsub_uri(uri)
   end
 
-  local key = ngx.var.status .. ":" .. uri
+  local key = "none|" .. ngx.var.status .. "|" .. uri
 
-  STAT:incr("uri_count:"   .. key, 1, 0)                    -- uri request count by status
-  STAT:incr("uri_latency:" .. key, ngx.var.request_time, 0) -- uri request total latency by status
+  STAT:incr("uri_n:" .. key, 1, 0)                    -- uri request count by status
+  STAT:incr("uri_t:" .. key, ngx.var.request_time, 0) -- uri request total latency by status
 end
 
 function _M.process()

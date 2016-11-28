@@ -5,6 +5,7 @@ local _M = {
 local system = require "system"
 
 local function init_sysconfig(typ)
+  ngx.log(ngx.INFO, "Configure " .. typ .. " modules begin")
   local files = system.getfiles("conf/conf.d/sysconfig", ".+%.lua$")
   for _, file in pairs(files)
   do
@@ -23,9 +24,11 @@ local function init_sysconfig(typ)
     end
 ::continue::
   end
+  ngx.log(ngx.INFO, "Configure " .. typ .. " modules end")
 end
 
 local function initd(typ)
+  ngx.log(ngx.INFO, "Startup " .. typ .. " modules begin")
   local files = system.getfiles("lua/initd/startup", ".+%.lua$")
   for _, file in pairs(files)
   do
@@ -44,15 +47,12 @@ local function initd(typ)
     end
 ::continue::
   end
+  ngx.log(ngx.INFO, "Startup " .. typ .. " modules end")
 end
 
 function _M.make(typ)
-  ngx.log(ngx.INFO, "Configure " .. typ .. " modules begin")
   init_sysconfig(typ)
-  ngx.log(ngx.INFO, "Configure " .. typ .. " modules end")
-  ngx.log(ngx.INFO, "Startup " .. typ .. " modules begin")
   initd(typ)
-  ngx.log(ngx.INFO, "Startup " .. typ .. " modules end")
 end
 
 return _M
