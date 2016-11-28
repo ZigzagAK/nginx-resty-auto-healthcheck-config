@@ -2,8 +2,9 @@ local _M = {
   _VERSION = "1.0.0"
 }
 
+local STAT = ngx.shared.stat
+
 function _M.process()
-  ngx.log(ngx.INFO, "Request " .. ngx.var.request .. " begin")
 end
 
 return _M
