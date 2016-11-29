@@ -67,11 +67,17 @@ local function accum_upstream_stat()
 
   local u = get_upstream(upstream_addr)
   local upstream_status = ngx.var.upstream_status:match("(%d+)$")  -- get last from chain
+  local upstream_response_time = ngx.var.upstream_response_time
+
+  if not upstream_status then
+    upstream_status = 499
+    upstream_response_time = 0
+  end
 
   local key = u .. "|" .. upstream_status .. "|" .. upstream_addr
 
   STAT:incr("upstream_n:" .. key, 1, 0)                              -- upstream request count by status
-  STAT:incr("upstream_t:" .. key, ngx.var.upstream_response_time, 0) -- upstream total latency by status
+  STAT:incr("upstream_t:" .. key, upstream_response_time, 0) -- upstream total latency by status
 end
 
 local function accum_uri_stat()

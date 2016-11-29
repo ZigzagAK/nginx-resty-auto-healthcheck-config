@@ -15,6 +15,8 @@ end
 
 function _M.config()
   CONFIG:set("http.stat.interval", 60)
+  CONFIG:set("http.stat.collect_time_min", 10)
+  CONFIG:set("http.stat.collect_time_max", 600)
   CONFIG:set("http.stat.gsub_uri", "sysconfig.01-stat.process_uri")
 end
 
