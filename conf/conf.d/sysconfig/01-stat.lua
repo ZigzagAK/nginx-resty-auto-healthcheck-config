@@ -14,7 +14,7 @@ function _M.preprocess_uri(uri)
 end
 
 function _M.config()
-  CONFIG:set("http.stat.collect_time_max", 3600)
+  CONFIG:set("http.stat.collect_time_max", 1800)
   CONFIG:set("http.stat.preprocess_uri", "sysconfig.01-stat.preprocess_uri")
 end
 

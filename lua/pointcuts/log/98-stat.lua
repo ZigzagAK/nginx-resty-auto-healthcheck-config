@@ -94,7 +94,9 @@ local function accum_uri_stat()
 end
 
 function _M.process()
-  STAT:safe_add("time_start", ngx.now()) -- register start accumulate time (if exists - not added)
+  local now = ngx.now()
+  STAT:safe_add("firts_request_time", now)   -- register start accumulate time (if exists - not added)  (used in lastlog.lua)
+  STAT:set("last_request_time", now)         -- register last request time                              (used in lastlog.lua)
   accum_upstream_stat()
   accum_uri_stat()
 end

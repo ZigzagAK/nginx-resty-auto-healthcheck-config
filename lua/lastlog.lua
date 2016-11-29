@@ -36,9 +36,9 @@ end
 local function pull_statistic()
   local t = {}
   local keys = STAT:get_keys()
-  local start_time = STAT:get("time_start")
+  local start_time = STAT:get("firts_request_time")
 
-  STAT:delete("time_start")
+  STAT:delete("firts_request_time")
 
   for _, key in pairs(keys)
   do
@@ -54,6 +54,8 @@ local function pull_statistic()
     sett(t, u, arg, status, typ, v)
 ::continue::
   end
+
+  local end_time = STAT:get("last_request_time")
 
   local reqs = t["none"] or {}
   t["none"] = nil
@@ -83,8 +85,7 @@ local function pull_statistic()
     end
   end
 
-  return start_time, { reqs = reqs,
-                       ups  = t }
+  return start_time, end_time, { reqs = reqs, ups = t }
 end
 
 local collect_time_min = CONFIG:get("http.stat.collect_time_min") or 1
@@ -92,10 +93,14 @@ local collect_time_max = CONFIG:get("http.stat.collect_time_max") or 600
 
 local function do_collect()
   local j = STAT:incr("collector:j", 1, 0)
-  local start_time, data = pull_statistic()
-  local json = cjson.encode( { time = start_time,
-                               stat = data } )
-  STAT:set("collector[" .. j .. "]", json, collect_time_max)
+  local start_time, end_time, s = pull_statistic()
+  local json = cjson.encode( { start_time = start_time or 0,
+                                 end_time = end_time or 0,
+                                     stat = s } )
+  local ok, err, forcible = STAT:set("collector[" .. j .. "]", json, collect_time_max)
+  if not ok then
+    ngx.log(ngx.ERR, "Collector: failed to add statistic into shared memory. Increase [lua_shared_dict stat] or decrease [http.stat.collect_time_max]")
+  end
 --ngx.log(ngx.INFO, "collector: ", json)
 end
 
@@ -121,7 +126,7 @@ collector = function(premature, ctx)
 
   local ok, err = ngx.timer.at(collect_time_min, collector, ctx)
   if not ok then
-    ngx.log(ngx.ERR, "failed to continue statistic collector job: ", err)
+    ngx.log(ngx.ERR, "Collector: failed to continue statistic collector job: ", err)
   end
 end
 
@@ -132,7 +137,7 @@ function _M.spawn_collector()
   STAT:safe_set("collector:next", 0)
   local ok, err = ngx.timer.at(0, collector, ctx)
   if not ok then
-    ngx.log(ngx.ERR, "failed to create statistic collector job: ", err)
+    ngx.log(ngx.ERR, "Collector: failed to create statistic collector job: ", err)
   end
 end
 
@@ -159,16 +164,23 @@ end
 
 function _M.get_statistic(period, backward)
   local t = { reqs = {}, ups = {} }
-  local now = ngx.now() - (backward or 0)
   local count_reqs = 0
   local count_ups = 0
   local start_time
-  local end_time = ngx.now()
-
+  local end_time
+  
   if not period then
     period = 60
   end
+
+  if not backward then
+    backward = 0
+  end
+
+  ngx.update_time()
   
+  local now = ngx.now() - backward - period
+
   for j = (STAT:get("collector:j") or 0), 0, -1
   do
     local json = STAT:get("collector[" .. j .. "]")
@@ -176,22 +188,26 @@ function _M.get_statistic(period, backward)
       break
     end
 
-    local stat_j = cjson.decode(json)
+    local stat_j = cjson.decode(json) or { stat = nil }
+    
+    if not stat_j.stat then
+      goto continue
+    end
 
-    if not stat_j or not stat_j.time or stat_j.time > now then
+    if stat_j.end_time > now + period then
       goto continue
     end
     
-    if stat_j.time < now - period then
+    if stat_j.end_time < now then
       break
     end
 
-    if not start_time then
-      start_time = stat_j.time
+    if not end_time then
+      end_time = stat_j.end_time
     end
-    
-    end_time = stat_j.time
 
+    start_time = stat_j.start_time
+    
     if stat_j.stat.reqs then
       merge(t.reqs, stat_j.stat.reqs)
       count_reqs = count_reqs + 1
@@ -237,7 +253,7 @@ function _M.get_statistic(period, backward)
     table.sort(reqs, function(l, r) return l.stat.latency > r.stat.latency end)
   end
 
-  return t.reqs, t.ups, http_x, start_time or now, (start_time or now) + period
+  return t.reqs, t.ups, http_x, start_time or 0, end_time or 0
 end
 
 return _M
