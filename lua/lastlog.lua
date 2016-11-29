@@ -154,9 +154,9 @@ local function merge(l, r)
   end
 end
 
-function _M.get_statistic(period)
+function _M.get_statistic(period, backward)
   local t = { reqs = {}, ups = {} }
-  local now = ngx.now()
+  local now = ngx.now() - (backward or 0)
   local count_reqs = 0
   local count_ups = 0
 
@@ -172,6 +172,10 @@ function _M.get_statistic(period)
     end
 
     local stat_j = cjson.decode(json)
+
+    if stat_j.time > now then
+      goto continue
+    end
     
     if stat_j.time < now - period then
       break
@@ -186,6 +190,7 @@ function _M.get_statistic(period)
       merge(t.ups, stat_j.stat.ups)
       count_ups = count_ups + 1
     end
+:: continue::
   end
   
   local http_x = {}
