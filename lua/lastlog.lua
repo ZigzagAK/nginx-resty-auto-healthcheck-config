@@ -33,9 +33,12 @@ local function sett(t, ...)
   return t
 end
 
-function _M.pull_statistic()
+local function pull_statistic()
   local t = {}
   local keys = STAT:get_keys()
+  local start_time = STAT:get("time_start")
+
+  STAT:delete("time_start")
 
   for _, key in pairs(keys)
   do
@@ -52,7 +55,6 @@ function _M.pull_statistic()
 ::continue::
   end
 
-  STAT:set("time_start", ngx.now())
   local reqs = t["none"] or {}
   t["none"] = nil
 
@@ -81,8 +83,8 @@ function _M.pull_statistic()
     end
   end
 
-  return { reqs   = reqs,
-           ups    = t }
+  return start_time, { reqs = reqs,
+                       ups  = t }
 end
 
 local collect_time_min = CONFIG:get("http.stat.collect_time_min") or 1
@@ -90,8 +92,9 @@ local collect_time_max = CONFIG:get("http.stat.collect_time_max") or 600
 
 local function do_collect()
   local j = STAT:incr("collector:j", 1, 0)
-  local json = cjson.encode( { time = ngx.now(),
-                               stat = _M.pull_statistic() } )
+  local start_time, data = pull_statistic()
+  local json = cjson.encode( { time = start_time,
+                               stat = data } )
   STAT:set("collector[" .. j .. "]", json, collect_time_max)
 --ngx.log(ngx.INFO, "collector: ", json)
 end
@@ -159,6 +162,8 @@ function _M.get_statistic(period, backward)
   local now = ngx.now() - (backward or 0)
   local count_reqs = 0
   local count_ups = 0
+  local start_time
+  local end_time = ngx.now()
 
   if not period then
     period = 60
@@ -173,13 +178,19 @@ function _M.get_statistic(period, backward)
 
     local stat_j = cjson.decode(json)
 
-    if stat_j.time > now then
+    if not stat_j or not stat_j.time or stat_j.time > now then
       goto continue
     end
     
     if stat_j.time < now - period then
       break
     end
+
+    if not start_time then
+      start_time = stat_j.time
+    end
+    
+    end_time = stat_j.time
 
     if stat_j.stat.reqs then
       merge(t.reqs, stat_j.stat.reqs)
@@ -226,7 +237,7 @@ function _M.get_statistic(period, backward)
     table.sort(reqs, function(l, r) return l.stat.latency > r.stat.latency end)
   end
 
-  return t.reqs, t.ups, http_x
+  return t.reqs, t.ups, http_x, start_time or now, (start_time or now) + period
 end
 
 return _M
