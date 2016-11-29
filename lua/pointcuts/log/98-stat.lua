@@ -66,18 +66,25 @@ local function accum_upstream_stat()
   end
 
   local u = get_upstream(upstream_addr)
-  local upstream_status = ngx.var.upstream_status:match("(%d+)$")  -- get last from chain
-  local upstream_response_time = ngx.var.upstream_response_time
+
+  local upstream_status        = ngx.var.upstream_status:match("(%d+)$")            -- get last from chain
+  local upstream_response_time = ngx.var.upstream_response_time:match("([%d%.]+)$") -- get last from chain
 
   if not upstream_status then
     upstream_status = 499
+  end
+
+  if not upstream_response_time then
     upstream_response_time = 0
   end
 
   local key = u .. "|" .. upstream_status .. "|" .. upstream_addr
+  local start_request_time = ngx.ctx.start_request_time
 
-  STAT:incr("upstream_n:" .. key, 1, 0)                      -- upstream request count by status
-  STAT:incr("upstream_t:" .. key, upstream_response_time, 0) -- upstream total latency by status
+  STAT:safe_add("first_request_time:" .. key, start_request_time, 0) -- first request start time
+  STAT:set("last_request_time:" .. key, start_request_time, 0)       -- last request start time
+  STAT:incr("count:" .. key, 1, 0)                                   -- upstream request count by status
+  STAT:incr("latency:" .. key, upstream_response_time, 0)            -- upstream total latency by status
 end
 
 local function accum_uri_stat()
@@ -90,16 +97,17 @@ local function accum_uri_stat()
     end
   end
 
-  local key = "none|" .. ngx.var.status .. "|" .. uri
+  local key = "none|" .. (ngx.var.status or 499) .. "|" .. uri
+  local start_request_time = ngx.ctx.start_request_time
 
-  STAT:incr("uri_n:" .. key, 1, 0)                    -- uri request count by status
-  STAT:incr("uri_t:" .. key, ngx.var.request_time, 0) -- uri request total latency by status
+  STAT:safe_add("first_request_time:" .. key, start_request_time, 0) -- first request start time
+  STAT:set("last_request_time:" .. key, start_request_time, 0)       -- last request start time
+  STAT:incr("count:" .. key, 1, 0)                                   -- uri request count by status
+  STAT:incr("latency:" .. key, ngx.now() - start_request_time, 0)    -- uri request total latency by status
 end
 
 function _M.process()
   local now = ngx.now()
-  STAT:safe_add("firts_request_time", now)   -- register start accumulate time (if exists - not added)  (used in lastlog.lua)
-  STAT:set("last_request_time", now)         -- register last request time                              (used in lastlog.lua)
   pcall(accum_upstream_stat)
   pcall(accum_uri_stat)
 end

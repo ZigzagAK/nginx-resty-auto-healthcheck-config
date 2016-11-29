@@ -9,6 +9,10 @@ local STAT = ngx.shared.stat
 local CONFIG = ngx.shared.config
 local DICT = "stat"
 
+local function is_cumulative(k)
+  return k == "count" or k == "latency"
+end
+
 local function sett(t, ...)
   local n = select("#",...)
   for i=1,n
@@ -16,12 +20,10 @@ local function sett(t, ...)
     local k = select(i,...)
     if i == n - 1 then
       local v = select(n,...)
-      if type(v) == "number" then
+      if is_cumulative(k) then
         t[k] = (t[k] or 0) + v
       else
-        if not t[k] then
-          t[k] = v
-        end
+        t[k] = v
       end
       return
     end
@@ -36,9 +38,7 @@ end
 local function pull_statistic()
   local t = {}
   local keys = STAT:get_keys()
-  local start_time = STAT:get("firts_request_time")
-
-  STAT:delete("firts_request_time")
+  local start_time, end_time
 
   for _, key in pairs(keys)
   do
@@ -47,15 +47,21 @@ local function pull_statistic()
     if not arg then
       goto continue
     end
-    
+
     local v = STAT:get(key)
     STAT:delete(key)
 
     sett(t, u, arg, status, typ, v)
+
+    if typ == "first_request_time" then
+      start_time = math.min(v, start_time or v)
+    end
+
+    if typ == "last_request_time" then
+      end_time = math.max(v, end_time or v)
+    end
 ::continue::
   end
-
-  local end_time = STAT:get("last_request_time")
 
   local reqs = t["none"] or {}
   t["none"] = nil
@@ -65,9 +71,7 @@ local function pull_statistic()
   do
     for status, stat in pairs(data)
     do
-      if stat.uri_t and stat.uri_n and stat.uri_n ~= 0 then
-        data[status] = { count = stat.uri_n, latency = stat.uri_t / stat.uri_n }
-      end
+      stat.latency = (stat.latency or 0) / stat.count
     end
   end
 
@@ -78,9 +82,7 @@ local function pull_statistic()
     do
       for status, stat in pairs(data)
       do
-        if stat.upstream_t and stat.upstream_n and stat.upstream_n ~= 0 then
-          data[status] = { count = stat.upstream_n, latency = stat.upstream_t / stat.upstream_n }
-        end
+        stat.latency = (stat.latency or 0) / stat.count
       end
     end
   end
@@ -92,16 +94,19 @@ local collect_time_min = CONFIG:get("http.stat.collect_time_min") or 1
 local collect_time_max = CONFIG:get("http.stat.collect_time_max") or 600
 
 local function do_collect()
-  local j = STAT:incr("collector:j", 1, 0)
   local start_time, end_time, s = pull_statistic()
-  local json = cjson.encode( { start_time = start_time or 0,
-                                 end_time = end_time or 0,
-                                     stat = s } )
+  if not start_time or not end_time then
+    return
+  end
+  local json = cjson.encode( { start_time = start_time,
+                               end_time = end_time,
+                               stat = s } )
+  local j = STAT:incr("collector:j", 1, 0)
   local ok, err, forcible = STAT:set("collector[" .. j .. "]", json, collect_time_max)
   if not ok then
-    ngx.log(ngx.ERR, "Collector: failed to add statistic into shared memory. Increase [lua_shared_dict stat] or decrease [http.stat.collect_time_max]")
+    ngx.log(ngx.ERR, "Collector: failed to add statistic into shared memory. Increase [lua_shared_dict stat] or decrease [http.stat.collect_time_max], err:" .. err)
   end
---ngx.log(ngx.INFO, "collector: ", json)
+--ngx.log(ngx.DEBUG, "collector: j=" .. j .. ", size=" .. #json .. ", json:" .. json)
 end
 
 local collector
@@ -153,10 +158,17 @@ local function merge(l, r)
       end
       merge(l[k], v)
     else
-      if type(v) == "number" then
+      if k == "latency" or k == "count" then
         l[k] = (l[k] or 0) + v
-      else
-        l[k] = v
+      elseif k == "first_request_time" then
+        l[k] = math.min(l[k] or v, v)
+      elseif k == "last_request_time" then
+        l[k] = math.max(l[k] or v, v)
+      end
+      if l.count and l.first_request_time and l.last_request_time then
+        if l.last_request_time >= ngx.now() - 1 then
+          l.current_rps = l.count / (l.last_request_time - l.first_request_time)
+        end
       end
     end
   end
@@ -166,8 +178,7 @@ function _M.get_statistic(period, backward)
   local t = { reqs = {}, ups = {} }
   local count_reqs = 0
   local count_ups = 0
-  local start_time
-  local end_time
+  local current_rps = 0
   
   if not period then
     period = 60
@@ -194,7 +205,7 @@ function _M.get_statistic(period, backward)
       goto continue
     end
 
-    if stat_j.end_time > now + period then
+    if stat_j.start_time > now + period then
       goto continue
     end
     
@@ -202,12 +213,6 @@ function _M.get_statistic(period, backward)
       break
     end
 
-    if not end_time then
-      end_time = stat_j.end_time
-    end
-
-    start_time = stat_j.start_time
-    
     if stat_j.stat.reqs then
       merge(t.reqs, stat_j.stat.reqs)
       count_reqs = count_reqs + 1
@@ -253,7 +258,7 @@ function _M.get_statistic(period, backward)
     table.sort(reqs, function(l, r) return l.stat.latency > r.stat.latency end)
   end
 
-  return t.reqs, t.ups, http_x, start_time or 0, end_time or 0
+  return t.reqs, t.ups, http_x, now, now + period
 end
 
 return _M
