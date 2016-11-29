@@ -58,7 +58,7 @@ local function accum_upstream_stat()
   local upstream_addr = ngx.var.upstream_addr
 
   if upstream_addr then
-    upstream_addr = upstream_addr:match("(%d%d?%d?%.%d%d?%d?%.%d%d?%d?%.%d%d?%d?%:%d%d?%d?%d?%d?)$")
+    upstream_addr = upstream_addr:match("(%d%d?%d?%.%d%d?%d?%.%d%d?%d?%.%d%d?%d?%:%d%d?%d?%d?%d?)$") -- get last from chain
   end
 
   if not upstream_addr then
@@ -66,8 +66,9 @@ local function accum_upstream_stat()
   end
 
   local u = get_upstream(upstream_addr)
+  local upstream_status = ngx.var.upstream_status:match("(%d+)$")  -- get last from chain
 
-  local key = u .. "|" .. ngx.var.upstream_status .. "|" .. upstream_addr
+  local key = u .. "|" .. upstream_status .. "|" .. upstream_addr
 
   STAT:incr("upstream_n:" .. key, 1, 0)                              -- upstream request count by status
   STAT:incr("upstream_t:" .. key, ngx.var.upstream_response_time, 0) -- upstream total latency by status

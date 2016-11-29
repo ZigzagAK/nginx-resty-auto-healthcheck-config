@@ -58,9 +58,11 @@ function _M.get_statistic()
   do
     for status, stat in pairs(data)
     do
-      data[status] = { count = stat.uri_n, latency = stat.uri_t / stat.uri_n }
-      sett(http_x, status, {})
-      table.insert(http_x[status], { uri = uri, stat = data[status] })
+      if stat.uri_t and stat.uri_n and stat.uri_n ~= 0 then
+        data[status] = { count = stat.uri_n, latency = stat.uri_t / stat.uri_n }
+        sett(http_x, status, {})
+        table.insert(http_x[status], { uri = uri, stat = data[status] })
+      end
     end
   end
 
@@ -71,7 +73,9 @@ function _M.get_statistic()
     do
       for status, stat in pairs(data)
       do
-        data[status] = { count = stat.upstream_n, latency = stat.upstream_t / stat.upstream_n }
+        if stat.upstream_t and stat.upstream_n and stat.upstream_n ~= 0 then
+          data[status] = { count = stat.upstream_n, latency = stat.upstream_t / stat.upstream_n }
+        end
       end
     end
   end
