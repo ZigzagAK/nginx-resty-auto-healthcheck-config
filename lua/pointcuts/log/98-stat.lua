@@ -84,7 +84,10 @@ local function accum_uri_stat()
   local uri = ngx.var.uri
 
   if preprocess_uri then
-    uri = preprocess_uri(uri)
+    ok, transformed = pcall(preprocess_uri(uri))
+    if ok then
+      uri = transformed
+    end
   end
 
   local key = "none|" .. ngx.var.status .. "|" .. uri
@@ -97,8 +100,8 @@ function _M.process()
   local now = ngx.now()
   STAT:safe_add("firts_request_time", now)   -- register start accumulate time (if exists - not added)  (used in lastlog.lua)
   STAT:set("last_request_time", now)         -- register last request time                              (used in lastlog.lua)
-  accum_upstream_stat()
-  accum_uri_stat()
+  pcall(accum_upstream_stat)
+  pcall(accum_uri_stat)
 end
 
 return _M

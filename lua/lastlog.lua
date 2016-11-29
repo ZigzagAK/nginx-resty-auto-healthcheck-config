@@ -116,7 +116,7 @@ collector = function(premature, ctx)
     local now = ngx.now()
     if STAT:get("collector:next") <= now then
       STAT:set("collector:next", now + collect_time_min)
-      do_collect()
+      pcall(do_collect)
       STAT:flush_expired()
     end
     ctx.mutex:unlock()
@@ -227,11 +227,11 @@ function _M.get_statistic(period, backward)
   do
     for status, stat in pairs(data)
     do
-      stat.latency = stat.latency / count_reqs
+      stat.latency = (stat.latency or 0) / count_reqs
       if not http_x[status] then
         http_x[status] = {}
       end
-      table.insert(http_x[status], { uri = uri, stat = stat })
+      table.insert(http_x[status], { uri = uri or "?", stat = stat })
     end
   end
 
