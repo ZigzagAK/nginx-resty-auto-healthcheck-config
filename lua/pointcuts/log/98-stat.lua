@@ -8,16 +8,16 @@ local cjson = require "cjson"
 local STAT   = ngx.shared.stat
 local CONFIG = ngx.shared.config
 
-local gsub_uri = CONFIG:get("http.stat.gsub_uri")
+local preprocess_uri = CONFIG:get("http.stat.preprocess_uri")
 
-if gsub_uri then
-  local gsub_mod_name, gsub_mod_func = gsub_uri:match("(.+)%.(.+)$")
+if preprocess_uri then
+  local gsub_mod_name, gsub_mod_func = preprocess_uri:match("(.+)%.(.+)$")
   local ok, gsub_mod = pcall(require, gsub_mod_name)
   if ok then
-    gsub_uri = gsub_mod[gsub_mod_func]
+    preprocess_uri = gsub_mod[gsub_mod_func]
   end
-  if not gsub_uri then
-    ngx.log(ngx.ERR, CONFIG:get("http.stat.gsub_uri") .. " is not found")
+  if not preprocess_uri then
+    ngx.log(ngx.ERR, CONFIG:get("http.stat.preprocess_uri") .. " is not found")
   end
 end
 
@@ -83,8 +83,8 @@ end
 local function accum_uri_stat()
   local uri = ngx.var.uri
 
-  if gsub_uri then
-    uri = gsub_uri(uri)
+  if preprocess_uri then
+    uri = preprocess_uri(uri)
   end
 
   local key = "none|" .. ngx.var.status .. "|" .. uri

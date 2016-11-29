@@ -85,7 +85,7 @@ function _M.pull_statistic()
            ups    = t }
 end
 
-local collect_time_min = CONFIG:get("http.stat.collect_time_min") or 10
+local collect_time_min = CONFIG:get("http.stat.collect_time_min") or 1
 local collect_time_max = CONFIG:get("http.stat.collect_time_max") or 600
 
 local function do_collect()

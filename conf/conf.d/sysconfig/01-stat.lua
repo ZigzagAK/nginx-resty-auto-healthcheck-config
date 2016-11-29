@@ -4,7 +4,7 @@ local _M = {
 
 local CONFIG = ngx.shared.config
 
-function _M.process_uri(uri)
+function _M.preprocess_uri(uri)
   return uri:gsub("/%d+[^/]+%d+",  "/XXX")
             :gsub("/%d+",          "/XXX")
             :gsub("/msisdn:[^/]+", "/msisdn:XXX")
@@ -14,10 +14,8 @@ function _M.process_uri(uri)
 end
 
 function _M.config()
-  CONFIG:set("http.stat.interval", 60)
-  CONFIG:set("http.stat.collect_time_min", 10)
   CONFIG:set("http.stat.collect_time_max", 600)
-  CONFIG:set("http.stat.gsub_uri", "sysconfig.01-stat.process_uri")
+  CONFIG:set("http.stat.preprocess_uri", "sysconfig.01-stat.preprocess_uri")
 end
 
 return _M
