@@ -76,7 +76,7 @@ local function accum_upstream_stat()
 
   local key = u .. "|" .. upstream_status .. "|" .. upstream_addr
 
-  STAT:incr("upstream_n:" .. key, 1, 0)                              -- upstream request count by status
+  STAT:incr("upstream_n:" .. key, 1, 0)                      -- upstream request count by status
   STAT:incr("upstream_t:" .. key, upstream_response_time, 0) -- upstream total latency by status
 end
 

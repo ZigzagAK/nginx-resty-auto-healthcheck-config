@@ -93,6 +93,7 @@ local function do_collect()
   local json = cjson.encode( { time = ngx.now(),
                                stat = _M.pull_statistic() } )
   STAT:set("collector[" .. j .. "]", json, collect_time_max)
+--ngx.log(ngx.INFO, "collector: ", json)
 end
 
 local collector
