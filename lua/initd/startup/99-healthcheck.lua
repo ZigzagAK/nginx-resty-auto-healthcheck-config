@@ -39,27 +39,6 @@ local function start_job(delay, f, ...)
   end
 end
 
-local function set_peers_down(mod)
-  local ok, upstreams, err = mod.get_upstreams()
-  if not ok then
-    ngx.log(ngx.ERR, "failed to get upstreams: ", err)
-    return
-  end
-
-  for _, u in pairs(upstreams)
-  do
-    local ok, peers, err = mod.get_peers(u)
-    if ok then
-      for _, peer in pairs(peers)
-      do
-        mod.set_peer_down(u, peer)
-      end
-    else
-      ngx.log(ngx.ERR, "failed to get servers: ", err)
-    end
-  end
-end
-
 function _M.startup()
   local id = ngx.worker.id()
   if id ~= 0 then
@@ -67,9 +46,6 @@ function _M.startup()
   end
 
   ngx.log(ngx.INFO, "Setup healthcheck job worker #" .. id)
-
-  set_peers_down(http_hc)
-  set_peers_down(stream_hc)
 
   start_job(0, startup_healthcheck, http_hc,
                                     { typ = "http",
