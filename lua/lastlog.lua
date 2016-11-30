@@ -315,9 +315,23 @@ function _M.get_statistic_table(period, portion, backward)
   ngx.update_time()
   now = ngx.now()
 
-  for time = now - (backward or 0) - (period or 60), now - (backward or 0), portion or 1
+  for time = now - (backward or 0) - (period or 60), now - (backward or 0), portion or 60
   do
-    local reqs, ups, http_x, _, _ = get_statistic_impl(time, portion or 1)
+    local reqs, ups, http_x, _, _ = get_statistic_impl(time, portion or 60)
+    table.insert(t, { requests_statistic = reqs,
+                      upstream_staistic = ups,
+                      http_x = http_x,
+                      time = time } )
+  end
+  return t
+end
+
+function _M.get_statistic_table_from(start_time, period, portion)
+  local t = {}
+
+  for time = start_time, start_time + period, portion or 60
+  do
+    local reqs, ups, http_x, _, _ = get_statistic_impl(time, portion or 60)
     table.insert(t, { requests_statistic = reqs,
                       upstream_staistic = ups,
                       http_x = http_x,
