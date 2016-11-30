@@ -81,10 +81,16 @@ local function accum_upstream_stat()
   local key = u .. "|" .. upstream_status .. "|" .. upstream_addr
   local start_request_time = ngx.ctx.start_request_time
 
-  STAT:safe_add("first_request_time:" .. key, start_request_time, 0) -- first request start time
-  STAT:set("last_request_time:" .. key, start_request_time, 0)       -- last request start time
-  STAT:incr("count:" .. key, 1, 0)                                   -- upstream request count by status
-  STAT:incr("latency:" .. key, upstream_response_time, 0)            -- upstream total latency by status
+  local ok, err
+
+  ok, err    = STAT:safe_add("first_request_time:" .. key, start_request_time, 0) -- first request start time
+  ok, err, _ = STAT:set("last_request_time:" .. key, start_request_time, 0)       -- last request start time
+  ok, err, _ = STAT:incr("count:" .. key, 1, 0)                                   -- upstream request count by status
+  ok, err, _ = STAT:incr("latency:" .. key, upstream_response_time, 0)            -- upstream total latency by status
+
+  if not ok then
+    error(err)
+  end
 
   ngx.log(ngx.DEBUG, "stat pointcut: key=" .. key ..
                      ", start_request_time=" .. start_request_time ..
@@ -104,10 +110,16 @@ local function accum_uri_stat()
   local key = "none|" .. (ngx.var.status or 499) .. "|" .. uri
   local start_request_time = ngx.ctx.start_request_time
 
-  STAT:safe_add("first_request_time:" .. key, start_request_time, 0) -- first request start time
-  STAT:set("last_request_time:" .. key, start_request_time, 0)       -- last request start time
-  STAT:incr("count:" .. key, 1, 0)                                   -- uri request count by status
-  STAT:incr("latency:" .. key, ngx.now() - start_request_time, 0)    -- uri request total latency by status
+  local ok, err
+
+  ok, err    = STAT:safe_add("first_request_time:" .. key, start_request_time, 0) -- first request start time
+  ok, err, _ = STAT:set("last_request_time:" .. key, start_request_time, 0)       -- last request start time
+  ok, err, _ = STAT:incr("count:" .. key, 1, 0)                                   -- uri request count by status
+  ok, err, _ = STAT:incr("latency:" .. key, ngx.now() - start_request_time, 0)    -- uri request total latency by status
+
+  if not ok then
+    error(err)
+  end
 
   ngx.log(ngx.DEBUG, "stat pointcut: key=" .. key ..
                      ", start_request_time=" .. start_request_time ..
@@ -115,8 +127,17 @@ local function accum_uri_stat()
 end
 
 function _M.process()
-  pcall(accum_upstream_stat)
-  pcall(accum_uri_stat)
+  local ok, err = pcall(accum_upstream_stat)
+  if ok then
+    ok, err = pcall(accum_uri_stat)
+  end
+  if not ok then
+    if err == "no memory" then
+      ngx.log(ngx.ERR, "stat pointcut: failed to add statistic into shared memory. Increase [lua_shared_dict stat] or decrease [http.stat.collect_time_max], err:" .. err)
+
+    end
+    error(err)
+  end
 end
 
 return _M
