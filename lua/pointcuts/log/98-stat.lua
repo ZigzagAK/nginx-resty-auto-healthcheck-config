@@ -85,6 +85,10 @@ local function accum_upstream_stat()
   STAT:set("last_request_time:" .. key, start_request_time, 0)       -- last request start time
   STAT:incr("count:" .. key, 1, 0)                                   -- upstream request count by status
   STAT:incr("latency:" .. key, upstream_response_time, 0)            -- upstream total latency by status
+
+  ngx.log(ngx.DEBUG, "stat pointcut: key=" .. key ..
+                     ", start_request_time=" .. start_request_time ..
+                     ", upstream_response_time=" .. upstream_response_time)
 end
 
 local function accum_uri_stat()
@@ -104,10 +108,13 @@ local function accum_uri_stat()
   STAT:set("last_request_time:" .. key, start_request_time, 0)       -- last request start time
   STAT:incr("count:" .. key, 1, 0)                                   -- uri request count by status
   STAT:incr("latency:" .. key, ngx.now() - start_request_time, 0)    -- uri request total latency by status
+
+  ngx.log(ngx.DEBUG, "stat pointcut: key=" .. key ..
+                     ", start_request_time=" .. start_request_time ..
+                     ", latency=" .. ngx.now() - start_request_time)
 end
 
 function _M.process()
-  local now = ngx.now()
   pcall(accum_upstream_stat)
   pcall(accum_uri_stat)
 end

@@ -106,7 +106,7 @@ local function do_collect()
   if not ok then
     ngx.log(ngx.ERR, "Collector: failed to add statistic into shared memory. Increase [lua_shared_dict stat] or decrease [http.stat.collect_time_max], err:" .. err)
   end
---ngx.log(ngx.DEBUG, "collector: j=" .. j .. ", size=" .. #json .. ", json:" .. json)
+  ngx.log(ngx.DEBUG, "collector: j=" .. j .. ", size=" .. #json .. ", json:" .. json)
 end
 
 local collector
@@ -165,8 +165,8 @@ local function merge(l, r)
       elseif k == "last_request_time" then
         l[k] = math.max(l[k] or v, v)
       end
-      if l.count and l.first_request_time and l.last_request_time then
-        if l.last_request_time >= ngx.now() - 1 then
+      if not l.current_rps and l.count and l.first_request_time and l.last_request_time then
+        if l.last_request_time > l.first_request_time and l.last_request_time >= ngx.now() - 1 then
           l.current_rps = l.count / (l.last_request_time - l.first_request_time)
         end
       end
@@ -224,11 +224,20 @@ function _M.get_statistic(period, backward)
     end
 :: continue::
   end
+
+  t = { ups  = { upstreams = t.ups, stat = {} },
+        reqs = { requests = t.reqs, stat = {} } }
   
   local http_x = {}
 
   -- request statistic
-  for uri, data in pairs(t.reqs)
+  
+  local n = 0
+  local sum_latency = 0
+  local sum_rps = 0
+  local count = 0
+
+  for uri, data in pairs(t.reqs.requests)
   do
     for status, stat in pairs(data)
     do
@@ -237,19 +246,43 @@ function _M.get_statistic(period, backward)
         http_x[status] = {}
       end
       table.insert(http_x[status], { uri = uri or "?", stat = stat })
+      count = count + stat.count
+      sum_rps = sum_rps + (stat.current_rps or 0)
+      sum_latency = sum_latency + stat.latency
+      n = n + 1
     end
   end
 
+  if n ~= 0 then
+    t.reqs.stat.average_latency = sum_latency / n
+  end
+  t.reqs.stat.average_rps = count / period
+  t.reqs.stat.current_rps = sum_rps
+
   -- upstream statistic
-  for u, peers in pairs(t.ups)
+  for u, peers in pairs(t.ups.upstreams)
   do
+    n = 0
+    sum_latency = 0
+    sum_rps = 0
+    count = 0
     for peer, data in pairs(peers)
     do
       for status, stat in pairs(data)
       do
         stat.latency = (stat.latency or 0) / count_ups
+        count = count + stat.count
+        sum_latency = sum_latency + stat.latency
+        sum_rps = sum_rps + (stat.current_rps or 0)
+        n = n + 1
       end
     end
+    if n ~= 0 then
+      t.ups.stat[u] = {}
+      t.ups.stat[u].average_latency = sum_latency / n
+    end
+    t.ups.stat[u].average_rps = count / period
+    t.ups.stat[u].current_rps = sum_rps
   end
   
   -- sort by latency desc
