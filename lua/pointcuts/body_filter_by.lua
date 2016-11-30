@@ -10,7 +10,7 @@ function _M.make()
   for _, file in pairs(files)
   do
     local name = file:match("(.+)%.lua$")
-    local ok, r = pcall(require, "pointcuts.log." .. name)
+    local ok, r = pcall(require, "pointcuts.body_filter." .. name)
     if not ok  then
       ngx.log(ngx.WARN, "Loading body_filter pointcut " .. name .. " error:" .. r)
       goto continue
