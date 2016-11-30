@@ -23,7 +23,7 @@ end
 
 local ok, upstreams, err = upstream.get_upstreams()
 if not ok then
-  ngx.log(ngx.WARN, "Can't get upstream list")
+  ngx.log(ngx.WARN, "stat pointcut: can't get upstream list")
 end
 
 local cache = {}
@@ -38,7 +38,7 @@ local function get_upstream(addr)
   do
     local ok, peers, err = upstream.get_peers(u)
     if not ok then
-      ngx.log(ngx.WARN, "Can't get upstream list")
+      ngx.log(ngx.WARN, "stat pointcut: can't get upstream list")
       break
     end
     for _, p in ipairs(peers)
@@ -133,8 +133,10 @@ function _M.process()
   end
   if not ok then
     if err == "no memory" then
-      ngx.log(ngx.ERR, "stat pointcut: failed to add statistic into shared memory. Increase [lua_shared_dict stat] or decrease [http.stat.collect_time_max], err:" .. err)
-
+      ngx.log(ngx.WARN, "stat pointcut: flushing stat shared memory because no space available")
+      STAT:flush_all()
+      STAT:flush_expired()
+      err = "stat pointcut: failed to add statistic into shared memory. Increase [lua_shared_dict stat] or decrease [http.stat.collect_time_max]"
     end
     error(err)
   end

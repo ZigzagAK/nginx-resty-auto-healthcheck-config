@@ -7,7 +7,7 @@ local lock = require "resty.lock"
   
 local STAT = ngx.shared.stat
 local CONFIG = ngx.shared.config
-local DICT = "stat"
+local DICT = "config"
 
 local function is_cumulative(k)
   return k == "count" or k == "latency"
@@ -37,8 +37,15 @@ end
 
 local function pull_statistic()
   local t = {}
-  local keys = STAT:get_keys()
+  local keys = STAT:get_keys(0)
   local start_time, end_time
+
+  if not keys then
+    ngx.log(ngx.DEBUG, "stat collector: pull_statistic no keys")
+    return nil, nil, { reqs = {}, ups = {} }
+  end
+
+  ngx.log(ngx.DEBUG, "stat collector: pull_statistic, keys=", #keys)
 
   for _, key in pairs(keys)
   do
@@ -50,6 +57,8 @@ local function pull_statistic()
 
     local v = STAT:get(key)
     STAT:delete(key)
+
+    ngx.log(ngx.DEBUG, "stat collector: key=" .. key .. ", value=" .. v)
 
     sett(t, u, arg, status, typ, v)
 
@@ -101,12 +110,12 @@ local function do_collect()
   local json = cjson.encode( { start_time = start_time,
                                end_time = end_time,
                                stat = s } )
-  local j = STAT:incr("collector:j", 1, 0)
-  local ok, err, forcible = STAT:set("collector[" .. j .. "]", json, collect_time_max)
+  local j = CONFIG:incr("collector:j", 1, 0)
+  local ok, err, _ = STAT:set("collector[" .. j .. "]", json, collect_time_max)
   if not ok then
-    ngx.log(ngx.ERR, "Collector: failed to add statistic into shared memory. Increase [lua_shared_dict stat] or decrease [http.stat.collect_time_max], err:" .. err)
+    ngx.log(ngx.ERR, "stat collector: failed to add statistic into shared memory. Increase [lua_shared_dict stat] or decrease [http.stat.collect_time_max], err:" .. err)
   end
-  ngx.log(ngx.DEBUG, "collector: j=" .. j .. ", size=" .. #json .. ", json:" .. json)
+  ngx.log(ngx.DEBUG, "stat collector: j=" .. j .. ", size=" .. #json .. ", json:" .. json)
 end
 
 local collector
@@ -115,23 +124,30 @@ collector = function(premature, ctx)
     return
   end
 
+  ngx.log(ngx.DEBUG, "stat collector: timer expired")
+
   local elapsed, err = ctx.mutex:lock("collector:mutex")
 
   if elapsed then
     local now = ngx.now()
-    if STAT:get("collector:next") <= now then
-      STAT:set("collector:next", now + collect_time_min)
-      pcall(do_collect)
+    if CONFIG:get("collector:next") <= now then
+      CONFIG:set("collector:next", now + collect_time_min)
+      local ok, err = pcall(do_collect)
+      if not ok then
+        ngx.log(ngx.ERR, "stat collector: pcall(do_collect): ", err)
+      end
       STAT:flush_expired()
+    else
+      ngx.log(ngx.DEBUG, "stat collector: skip collector:next ...")
     end
     ctx.mutex:unlock()
   else
-    ngx.log(ngx.INFO, "Collector: can't aquire mutex, err: " .. (err or "?"))
+    ngx.log(ngx.INFO, "stat collector: can't aquire mutex, err: " .. (err or "?"))
   end
 
   local ok, err = ngx.timer.at(collect_time_min, collector, ctx)
   if not ok then
-    ngx.log(ngx.ERR, "Collector: failed to continue statistic collector job: ", err)
+    ngx.log(ngx.ERR, "stat collector: failed to continue statistic collector job: ", err)
   end
 end
 
@@ -139,11 +155,13 @@ function _M.spawn_collector()
   local ctx = { 
     mutex = lock:new(DICT)
   }
-  STAT:safe_set("collector:next", 0)
+  CONFIG:safe_set("collector:next", 0)
   local ok, err = ngx.timer.at(0, collector, ctx)
   if not ok then
-    ngx.log(ngx.ERR, "Collector: failed to create statistic collector job: ", err)
+    ngx.log(ngx.ERR, "stat collector: failed to create statistic collector job: ", err)
+    error("failed to create statistic collector job: " .. err)
   end
+  ngx.log(ngx.DEBUG, "stat collector: job has been started")
 end
 
 local function merge(l, r)
@@ -192,7 +210,7 @@ function _M.get_statistic(period, backward)
   
   local now = ngx.now() - backward - period
 
-  for j = (STAT:get("collector:j") or 0), 0, -1
+  for j = (CONFIG:get("collector:j") or 0), 0, -1
   do
     local json = STAT:get("collector[" .. j .. "]")
     if not json then
@@ -290,6 +308,8 @@ function _M.get_statistic(period, backward)
   do
     table.sort(reqs, function(l, r) return l.stat.latency > r.stat.latency end)
   end
+
+  ngx.log(ngx.DEBUG, "stat collector: get_statistic() : ", cjson.encode({ reqs = t.reqs, ups = t.ups, http_x = http_x }))
 
   return t.reqs, t.ups, http_x, now, now + period
 end
