@@ -141,6 +141,7 @@ local function accum_uri_stat()
 end
 
 function _M.process()
+  ngx.update_time()
   local ok, err = pcall(accum_upstream_stat)
   if ok then
     ok, err = pcall(accum_uri_stat)

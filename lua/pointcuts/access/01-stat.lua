@@ -5,6 +5,7 @@ local _M = {
 local STAT = ngx.shared.stat
 
 function _M.process()
+  ngx.update_time()
   ngx.ctx.start_request_time = ngx.now()
 end
 

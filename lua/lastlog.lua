@@ -199,8 +199,6 @@ local function get_statistic_impl(now, period)
   local count_ups = 0
   local current_rps = 0
 
-  ngx.update_time()
-  
   for j = (DATA:get("collector:j") or 0), 0, -1
   do
     local json = STAT:get("collector[" .. j .. "]")
@@ -306,12 +304,16 @@ local function get_statistic_impl(now, period)
 end
 
 function _M.get_statistic(period, backward)
+  ngx.update_time()
   return get_statistic_impl(ngx.now() - (backward or 0) - (period or 60), period or 60)
 end
 
 function _M.get_statistic_table(period, portion, backward)
   local t = {}
-  local now = ngx.now()
+  local now
+
+  ngx.update_time()
+  now = ngx.now()
 
   for time = now - (backward or 0) - (period or 60), now - (backward or 0), portion or 1
   do
