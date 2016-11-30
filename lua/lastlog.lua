@@ -193,24 +193,14 @@ local function merge(l, r)
   end
 end
 
-function _M.get_statistic(period, backward)
+local function get_statistic_impl(now, period)
   local t = { reqs = {}, ups = {} }
   local count_reqs = 0
   local count_ups = 0
   local current_rps = 0
-  
-  if not period then
-    period = 60
-  end
-
-  if not backward then
-    backward = 0
-  end
 
   ngx.update_time()
   
-  local now = ngx.now() - backward - period
-
   for j = (DATA:get("collector:j") or 0), 0, -1
   do
     local json = STAT:get("collector[" .. j .. "]")
@@ -313,6 +303,25 @@ function _M.get_statistic(period, backward)
   ngx.log(ngx.DEBUG, "stat collector: get_statistic() : ", cjson.encode({ reqs = t.reqs, ups = t.ups, http_x = http_x }))
 
   return t.reqs, t.ups, http_x, now, now + period
+end
+
+function _M.get_statistic(period, backward)
+  return get_statistic_impl(ngx.now() - (backward or 0) - (period or 60), period or 60)
+end
+
+function _M.get_statistic_table(period, portion, backward)
+  local t = {}
+  local now = ngx.now()
+
+  for time = now - (backward or 0) - (period or 60), now - (backward or 0), portion or 1
+  do
+    local reqs, ups, http_x, _, _ = get_statistic_impl(time, portion or 1)
+    table.insert(t, { requests_statistic = reqs,
+                      upstream_staistic = ups,
+                      http_x = http_x,
+                      time = time } )
+  end
+  return t
 end
 
 return _M
