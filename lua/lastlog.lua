@@ -308,6 +308,10 @@ function _M.get_statistic(period, backward)
   return get_statistic_impl(ngx.now() - (backward or 0) - (period or 60), period or 60)
 end
 
+function _M.get_statistic_from(start_time, period)
+  return get_statistic_impl(start_time, period or (ngx.now() - start_time))
+end
+
 function _M.get_statistic_table(period, portion, backward)
   local t = {}
   local now
@@ -329,7 +333,7 @@ end
 function _M.get_statistic_table_from(start_time, period, portion)
   local t = {}
 
-  for time = start_time, start_time + period, portion or 60
+  for time = start_time, start_time + (period or ngx.now() - start_time), portion or 60
   do
     local reqs, ups, http_x, _, _ = get_statistic_impl(time, portion or 60)
     table.insert(t, { requests_statistic = reqs,
