@@ -5,9 +5,10 @@ local _M = {
 local cjson = require "cjson"
 local lock = require "resty.lock"
   
-local STAT = ngx.shared.stat
+local STAT   = ngx.shared.stat
 local CONFIG = ngx.shared.config
-local DICT = "config"
+local DATA   = ngx.shared.data
+local DICT   = "data"
 
 local function is_cumulative(k)
   return k == "count" or k == "latency"
@@ -110,7 +111,7 @@ local function do_collect()
   local json = cjson.encode( { start_time = start_time,
                                end_time = end_time,
                                stat = s } )
-  local j = CONFIG:incr("collector:j", 1, 0)
+  local j = DATA:incr("collector:j", 1, 0)
   local ok, err, _ = STAT:set("collector[" .. j .. "]", json, collect_time_max)
   if not ok then
     ngx.log(ngx.ERR, "stat collector: failed to add statistic into shared memory. Increase [lua_shared_dict stat] or decrease [http.stat.collect_time_max], err:" .. err)
@@ -130,8 +131,8 @@ collector = function(premature, ctx)
 
   if elapsed then
     local now = ngx.now()
-    if CONFIG:get("collector:next") <= now then
-      CONFIG:set("collector:next", now + collect_time_min)
+    if DATA:get("collector:next") <= now then
+      DATA:set("collector:next", now + collect_time_min)
       local ok, err = pcall(do_collect)
       if not ok then
         ngx.log(ngx.ERR, "stat collector: pcall(do_collect): ", err)
@@ -155,7 +156,7 @@ function _M.spawn_collector()
   local ctx = { 
     mutex = lock:new(DICT)
   }
-  CONFIG:safe_set("collector:next", 0)
+  DATA:safe_set("collector:next", 0)
   local ok, err = ngx.timer.at(0, collector, ctx)
   if not ok then
     ngx.log(ngx.ERR, "stat collector: failed to create statistic collector job: ", err)
@@ -210,7 +211,7 @@ function _M.get_statistic(period, backward)
   
   local now = ngx.now() - backward - period
 
-  for j = (CONFIG:get("collector:j") or 0), 0, -1
+  for j = (DATA:get("collector:j") or 0), 0, -1
   do
     local json = STAT:get("collector[" .. j .. "]")
     if not json then
