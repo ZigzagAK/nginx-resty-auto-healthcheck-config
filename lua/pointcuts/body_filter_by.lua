@@ -12,11 +12,11 @@ function _M.make()
     local name = file:match("(.+)%.lua$")
     local ok, r = pcall(require, "pointcuts.body_filter." .. name)
     if not ok  then
-      ngx.log(ngx.WARN, "Loading body_filter pointcut " .. name .. " error:" .. r)
+      ngx.log(ngx.WARN, "Loading body filter pointcut " .. name .. " error:" .. r)
       goto continue
     end
     table.insert(pointcuts, { name = name, m = r })
-    ngx.log(ngx.INFO, "Loaded body_filter pointcut " .. name .. " ...")
+    ngx.log(ngx.INFO, "Loaded body filter pointcut " .. name .. " ...")
 ::continue::
   end
 end
@@ -26,7 +26,7 @@ function _M.process()
   do
     local ok, err = pcall(pointcut.m.process)
     if not ok then
-      ngx.log(ngx.ERR, "Log body_filter " .. pointcut.name .. " error : " .. err)
+      ngx.log(ngx.ERR, "Body filter " .. pointcut.name .. " error : " .. err)
     end
   end
 end
