@@ -57,7 +57,7 @@ end
 local function get_request_time()
   local request_time = ngx.var.request_time
   local start_request_time
-  
+
   if request_time then
     start_request_time = ngx.now() - request_time
   else
@@ -115,15 +115,16 @@ local function accum_uri_stat()
   local uri = ngx.var.uri
 
   if preprocess_uri then
-    ok, transformed = pcall(preprocess_uri(uri))
+    ok, transformed = pcall(preprocess_uri, uri)
     if ok then
       uri = transformed
+      ngx.ctx.uri = transformed
     end
   end
 
   local key = "none|" .. (ngx.var.status or 499) .. "|" .. uri
   local start_request_time, request_time = get_request_time()
-  
+
   local ok, err
 
   ok, err    = STAT:safe_add("first_request_time:" .. key, start_request_time, 0) -- first request start time
