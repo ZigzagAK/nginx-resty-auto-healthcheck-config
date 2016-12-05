@@ -18,6 +18,7 @@ ffi.cdef[[
   int getpid (void);
   int getppid (void);
   int kill(int pid, int sig);
+  int usleep(unsigned int usec);
 ]]
 
 function _M.getpid()
@@ -30,6 +31,10 @@ end
 
 function _M.kill(pid, sig)
   return C.kill(pid, sig)
+end
+
+function _M.sleep(sec)
+  return C.usleep(sec * 1000000)
 end
 
 ffi.cdef[[
