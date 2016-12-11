@@ -13,14 +13,24 @@ local function startup_healthcheck(premature, mod, opts)
     return
   end
 
-  opts.shm          = HEALTHCHECK;
-  opts.interval     = CONFIG:get("healthcheck.interval");
-  opts.timeout      = CONFIG:get("healthcheck.timeout")
-  opts.fall         = CONFIG:get("healthcheck.fall")
-  opts.rise         = CONFIG:get("healthcheck.rise")
-  opts.concurrency  = 100
-  opts.get_ping_req = opts.get_ping_req
+  opts.shm = HEALTHCHECK
+  opts.interval = CONFIG:get("healthcheck.interval") or 10
 
+  if not opts.healthcheck then
+    opts.healthcheck = {}
+  end
+
+  opts.healthcheck.fall = CONFIG:get("healthcheck.fall") or 2
+  opts.healthcheck.rise = CONFIG:get("healthcheck.rise") or 2
+  opts.healthcheck.timeout = CONFIG:get("healthcheck.timeout") or 1000
+  
+  opts.check_all = CONFIG:get("healthcheck.all")
+  if opts.check_all == nil then
+    opts.check_all = true
+  end
+
+  opts.concurrency = 100
+  
   local hc = mod.new(opts)
   if hc then
     local ok, err = hc:start()
@@ -46,21 +56,23 @@ function _M.startup()
   end
 
   ngx.log(ngx.INFO, "Setup healthcheck job worker #" .. id)
+  
+  start_job(0, startup_healthcheck, http_hc, { typ = "http", 
+                                               healthcheck = {
+                                                 command = {
+                                                   uri = "/heartbeat",
+                                                   headers = {},
+                                                   body = nil,
+                                                   expected = {
+                                                     codes = { 200, 201, 202, 203, 204 },
+                                                     body = nil -- pcre
+                                                   }
+                                                 }
+                                               }
+                                             })
+  
+  start_job(0, startup_healthcheck, stream_hc, { typ = "tcp" })
 
-  start_job(0, startup_healthcheck, http_hc,
-                                    { typ = "http",
-                                      get_ping_req = function(u)
-                                        return "GET /" .. u .. "/heartbeat HTTP/1.0\r\n\r\n"
-                                      end,
-                                      valid_statuses = { 200, 201, 203, 204 }
-                                    })
-
-  start_job(0, startup_healthcheck, stream_hc,
-                                    { typ = "tcp",
-                                      get_ping_req = function(service)
-                                        return nil
-                                      end
-                                    })
 end
 
 return _M
