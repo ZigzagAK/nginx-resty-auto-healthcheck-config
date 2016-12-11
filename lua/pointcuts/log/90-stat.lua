@@ -21,39 +21,6 @@ if preprocess_uri then
   end
 end
 
-local ok, upstreams, err = upstream.get_upstreams()
-if not ok then
-  ngx.log(ngx.WARN, "stat pointcut: can't get upstream list")
-end
-
-local cache = {}
-
-local function get_upstream(addr)
-  local u = cache[addr]
-  if u then
-    return u
-  end
-
-  for _, u in ipairs(upstreams)
-  do
-    local ok, peers, err = upstream.get_peers(u)
-    if not ok then
-      ngx.log(ngx.WARN, "stat pointcut: can't get upstream list")
-      break
-    end
-    for _, p in ipairs(peers)
-    do
-      if p.name == addr then
-        cache[addr] = u
-        return u
-      end
-    end
-  end
-
-  cache[addr] = addr
-  return addr
-end
-
 local function get_request_time()
   local request_time = ngx.var.request_time
   local start_request_time
@@ -69,17 +36,23 @@ local function get_request_time()
 end
 
 local function accum_upstream_stat()
+  local ok, u, err = upstream.current_upstream()
+  if not u then
+    u = "proxypass"
+  end
+
   local upstream_addr = ngx.var.upstream_addr
 
   if upstream_addr then
-    upstream_addr = upstream_addr:match("(%d%d?%d?%.%d%d?%d?%.%d%d?%d?%.%d%d?%d?%:%d%d?%d?%d?%d?)$") -- get last from chain
-  end
-
-  if not upstream_addr then
+    upstream_addr = upstream_addr:match("([^%s,]+)$") -- get last from chain
+  else
     return
   end
 
-  local u = get_upstream(upstream_addr)
+  if u == upstream_addr then
+    -- error query
+    upstream_addr = "ERROR"
+  end
 
   local upstream_status        = ngx.var.upstream_status:match("(%d+)$")            -- get last from chain
   local upstream_response_time = ngx.var.upstream_response_time:match("([%d%.]+)$") -- get last from chain
@@ -95,12 +68,10 @@ local function accum_upstream_stat()
   local key = u .. "|" .. upstream_status .. "|" .. upstream_addr
   local start_request_time, request_time = get_request_time()
 
-  local ok, err
-
   ok, err    = STAT:safe_add("first_request_time:" .. key, start_request_time, 0) -- first request start time
   ok, err, _ = STAT:set("last_request_time:" .. key, start_request_time, 0)       -- last request start time
   ok, err, _ = STAT:incr("count:" .. key, 1, 0)                                   -- upstream request count by status
-  ok, err, _ = STAT:incr("latency:" .. key, request_time, 0)              -- upstream total latency by status
+  ok, err, _ = STAT:incr("latency:" .. key, request_time, 0)                      -- upstream total latency by status
 
   if not ok then
     error(err)
@@ -130,7 +101,7 @@ local function accum_uri_stat()
   ok, err    = STAT:safe_add("first_request_time:" .. key, start_request_time, 0) -- first request start time
   ok, err, _ = STAT:set("last_request_time:" .. key, start_request_time, 0)       -- last request start time
   ok, err, _ = STAT:incr("count:" .. key, 1, 0)                                   -- uri request count by status
-  ok, err, _ = STAT:incr("latency:" .. key, request_time, 0)    -- uri request total latency by status
+  ok, err, _ = STAT:incr("latency:" .. key, request_time, 0)                      -- uri request total latency by status
 
   if not ok then
     error(err)

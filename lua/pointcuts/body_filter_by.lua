@@ -7,7 +7,7 @@ local system = require "system"
 
 function _M.make()
   local files = system.getfiles("lua/pointcuts/body_filter", ".+%.lua$")
-  for _, file in pairs(files)
+  for _, file in ipairs(files)
   do
     local name = file:match("(.+)%.lua$")
     local ok, r = pcall(require, "pointcuts.body_filter." .. name)
@@ -19,6 +19,7 @@ function _M.make()
     ngx.log(ngx.INFO, "Loaded body filter pointcut " .. name .. " ...")
 ::continue::
   end
+  table.sort(pointcuts, function(l, r) return l.name < r.name end)
 end
 
 function _M.process()
