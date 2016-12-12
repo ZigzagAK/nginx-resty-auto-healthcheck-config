@@ -5,6 +5,7 @@ local _M = {
 local CONFIG = ngx.shared.config
 
 function _M.config()
+  CONFIG:set("healthcheck.uri", "/")
   CONFIG:set("healthcheck.interval", 10)
   CONFIG:set("healthcheck.timeout", 1000)
   CONFIG:set("healthcheck.fall", 2)
@@ -13,7 +14,7 @@ function _M.config()
   -- Turn on healthchecks for all peers
   -- otherwise depends on server healthcheck parameters
   -- if parameters are missing - no healthchecks
-  CONFIG:set("healthcheck.all", false)
+  CONFIG:safe_set("healthcheck.all", false)
 end
 
 return _M

@@ -78,12 +78,13 @@ local function accum_upstream_stat()
   end
 
   ngx.log(ngx.DEBUG, "stat pointcut: key=" .. key ..
-                     ", start_request_time=" .. start_request_time ..
-                     ", upstream_response_time=" .. upstream_response_time)
+    ", start_request_time=" .. start_request_time ..
+    ", upstream_response_time=" .. upstream_response_time)
 end
 
 local function accum_uri_stat()
   local uri = ngx.var.uri
+  local ok, transformed
 
   if preprocess_uri then
     ok, transformed = pcall(preprocess_uri, uri)
@@ -93,10 +94,10 @@ local function accum_uri_stat()
     end
   end
 
-  local key = "none|" .. (ngx.var.status or 499) .. "|" .. uri
+  local key = "none|" .. (ngx.var.status or 499) .. "|" .. (uri or "/")
   local start_request_time, request_time = get_request_time()
 
-  local ok, err
+  local err
 
   ok, err    = STAT:safe_add("first_request_time:" .. key, start_request_time, 0) -- first request start time
   ok, err, _ = STAT:set("last_request_time:" .. key, start_request_time, 0)       -- last request start time
@@ -108,8 +109,8 @@ local function accum_uri_stat()
   end
 
   ngx.log(ngx.DEBUG, "stat pointcut: key=" .. key ..
-                     ", start_request_time=" .. start_request_time ..
-                     ", latency=" .. request_time)
+    ", start_request_time=" .. start_request_time ..
+    ", latency=" .. request_time)
 end
 
 function _M.process()

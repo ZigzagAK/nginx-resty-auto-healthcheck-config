@@ -60,7 +60,8 @@ function _M.startup()
   start_job(0, startup_healthcheck, http_hc, { typ = "http", 
                                                healthcheck = {
                                                  command = {
-                                                   uri = "/heartbeat",
+                                                   uri = CONFIG:get("healthcheck.uri") or "/",
+                                                   method = "GET",
                                                    headers = {},
                                                    body = nil,
                                                    expected = {
