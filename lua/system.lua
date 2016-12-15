@@ -86,6 +86,7 @@ function _M.getfiles(directory, mask)
       table.insert(t, file)
     end
   end
+  table.sort(t, function(l, r) return l < r end)
   return t
 end
 
