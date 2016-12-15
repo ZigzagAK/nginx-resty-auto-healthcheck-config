@@ -79,7 +79,7 @@ function build_debug() {
               --add-module=../stream-lua-nginx-module \
               --add-module=../nginx-sticky-module-ng \
               --add-module=../ngx_dynamic_upstream \
-              --add-module=../ngx_dynamic_upstream_lua > /dev/null 2>&1
+              --add-module=../ngx_dynamic_upstream_lua > /dev/null
 
   r=$?
   if [ $r -ne 0 ]; then
@@ -112,7 +112,7 @@ function build_release() {
               --add-module=../stream-lua-nginx-module \
               --add-module=../nginx-sticky-module-ng \
               --add-module=../ngx_dynamic_upstream \
-              --add-module=../ngx_dynamic_upstream_lua > /dev/null 2>&1
+              --add-module=../ngx_dynamic_upstream_lua > /dev/null
 
 
   r=$?
