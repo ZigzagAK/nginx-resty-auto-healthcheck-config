@@ -111,12 +111,6 @@ nginx-1.11.6/lua/pointcuts/
 nginx-1.11.6/lua/pointcuts/access/
 nginx-1.11.6/lua/pointcuts/access/01-stat.lua
 nginx-1.11.6/lua/pointcuts/access_by.lua
-nginx-1.11.6/lua/pointcuts/body_filter/
-nginx-1.11.6/lua/pointcuts/body_filter_by.lua
-nginx-1.11.6/lua/pointcuts/body_filter/.keep
-nginx-1.11.6/lua/pointcuts/header_filter/
-nginx-1.11.6/lua/pointcuts/header_filter_by.lua
-nginx-1.11.6/lua/pointcuts/header_filter/.keep
 nginx-1.11.6/lua/pointcuts/init/
 nginx-1.11.6/lua/pointcuts/init_by.lua
 nginx-1.11.6/lua/pointcuts/init/.keep

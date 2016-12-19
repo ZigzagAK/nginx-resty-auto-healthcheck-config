@@ -338,13 +338,9 @@ function install_lua_modules() {
   install_file lua/system.lua                     lua
   install_file lua/initd                          lua
   install_file lua/pointcuts/access_by.lua        lua/pointcuts
-  install_file lua/pointcuts/body_filter_by.lua   lua/pointcuts
-  install_file lua/pointcuts/header_filter_by.lua lua/pointcuts
   install_file lua/pointcuts/init_by.lua          lua/pointcuts
   install_file lua/pointcuts/log_by.lua           lua/pointcuts
   install_file lua/pointcuts/access/01-stat.lua   lua/pointcuts/access
-  install_file lua/pointcuts/body_filter          lua/pointcuts
-  install_file lua/pointcuts/header_filter        lua/pointcuts
   install_file lua/pointcuts/init                 lua/pointcuts
   install_file lua/pointcuts/log/90-stat.lua      lua/pointcuts/log
   install_file conf                               .
