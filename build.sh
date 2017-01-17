@@ -335,6 +335,7 @@ function install_lua_modules() {
   install_file scripts/debug.sh                     .
   install_file scripts/restart.sh                   .
   install_file lua/lastlog.lua                      lua
+  install_file lua/job.lua                          lua
   install_file lua/system.lua                       lua
   install_file lua/initd                            lua
   install_file lua/pointcuts/access_by.lua          lua/pointcuts
