@@ -8,20 +8,26 @@ local JOBS = ngx.shared.jobs
 
 local main
 
-local function run_job(delay, self, ...)
+local function run_job(delay, obj, ...)
   if not ngx.worker.exiting() then
-    local ok, err = ngx.timer.at(delay, main, self, ...)
+    local ok, err = ngx.timer.at(delay, main, obj, ...)
     if not ok then
-      ngx.log(ngx.ERR, self.key .. " failed to add timer: ", err)
-      self:stop()
-      self:clean()
+      ngx.log(ngx.ERR, obj.key .. " failed to add timer: ", err)
+      obj:stop()
+      obj:clean()
     end
     return
   end
+  obj:finish()
 end
 
 main = function(premature, self, ...)
-  if premature or not self:running() then
+  if premature then
+    self:finish()
+    return
+  end
+
+  if not self:running() then
     return
   end
 
@@ -75,13 +81,14 @@ local job = {}
 
 -- public api
 
-function _M.new(name, callback, interval)
+function _M.new(name, callback, interval, finish)
   local j = {
-    callback = callback,
-    interval = interval,
-    key = name,
+    callback    = callback,
+    finish_fn   = finish,
+    interval    = interval,
+    key         = name,
     wait_others = {},
-    pid = nil
+    pid         = nil
   }
   return setmetatable(j, { __index = job })
 end
@@ -123,6 +130,12 @@ end
 
 function job:suspended()
   return JOBS:get(self.key .. ":suspended") == 1
+end
+
+function job:finish()
+  if self.finish_fn then
+    self.finish_fn()
+  end
 end
 
 function job:wait_for(other)
