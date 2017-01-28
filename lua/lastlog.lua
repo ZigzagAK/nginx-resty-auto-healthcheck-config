@@ -10,6 +10,14 @@ local CONFIG = ngx.shared.config
 local DATA   = ngx.shared.data
 local DICT   = "data"
 
+local debug_enabled = false
+
+local function debug(...)
+  if debug_enabled then
+    ngx.log(ngx.DEBUG, ...)
+  end
+end
+
 local function is_cumulative(k)
   return k == "count" or k == "latency"
 end
@@ -42,11 +50,11 @@ local function pull_statistic()
   local start_time, end_time
 
   if not keys then
-    ngx.log(ngx.DEBUG, "stat collector: pull_statistic no keys")
+    debug("stat collector: no keys")
     return nil, nil, { reqs = {}, ups = {} }
   end
 
-  ngx.log(ngx.DEBUG, "stat collector: pull_statistic, keys=", #keys)
+  debug("stat collector: keys=", #keys)
 
   for _, key in pairs(keys)
   do
@@ -59,7 +67,7 @@ local function pull_statistic()
     local v = STAT:get(key)
     STAT:delete(key)
 
-    ngx.log(ngx.DEBUG, "stat collector: key=" .. key .. ", value=" .. v)
+--  debug("stat collector: key=" .. key .. ", value=" .. v)
 
     sett(t, u, arg, status, typ, v)
 
@@ -116,7 +124,7 @@ local function do_collect()
   if not ok then
     ngx.log(ngx.ERR, "stat collector: failed to add statistic into shared memory. Increase [lua_shared_dict stat] or decrease [http.stat.collect_time_max], err:" .. err)
   end
-  ngx.log(ngx.DEBUG, "stat collector: j=" .. j .. ", size=" .. #json .. ", json:" .. json)
+--debug("stat collector: j=" .. j .. ", size=" .. #json .. ", json:" .. json)
 end
 
 local collector
@@ -124,8 +132,6 @@ collector = function(premature, ctx)
   if (premature) then
     return
   end
-
-  ngx.log(ngx.DEBUG, "stat collector: timer expired")
 
   local elapsed, err = ctx.mutex:lock("collector:mutex")
 
@@ -138,8 +144,6 @@ collector = function(premature, ctx)
         ngx.log(ngx.ERR, "stat collector: pcall(do_collect): ", err)
       end
       STAT:flush_expired()
-    else
-      ngx.log(ngx.DEBUG, "stat collector: skip collector:next ...")
     end
     ctx.mutex:unlock()
   else
@@ -162,7 +166,7 @@ function _M.spawn_collector()
     ngx.log(ngx.ERR, "stat collector: failed to create statistic collector job: ", err)
     error("failed to create statistic collector job: " .. err)
   end
-  ngx.log(ngx.DEBUG, "stat collector: job has been started")
+  ngx.log(ngx.INFO, "stat collector: job has been started")
 end
 
 local function merge(l, r)
@@ -298,7 +302,7 @@ local function get_statistic_impl(now, period)
     table.sort(reqs, function(l, r) return l.stat.latency > r.stat.latency end)
   end
 
-  ngx.log(ngx.DEBUG, "stat collector: get_statistic() : ", cjson.encode({ reqs = t.reqs, ups = t.ups, http_x = http_x }))
+  debug("stat collector: ", cjson.encode({ reqs = t.reqs, ups = t.ups, http_x = http_x }))
 
   return t.reqs, t.ups, http_x, now, now + period
 end
