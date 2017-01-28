@@ -2,11 +2,14 @@ local _M = {
   _VERSION = "1.0.0"
 }
 
+local common    = require "resty.upstream.dynamic.healthcheck.common"
 local http_hc   = require "resty.upstream.dynamic.healthcheck.http"
 local stream_hc = require "resty.upstream.dynamic.healthcheck.stream"
 
 local CONFIG      = ngx.shared.config
 local HEALTHCHECK = "healthcheck"
+
+local debug_enabled = CONFIG:get("healthcheck.debug")
 
 local function startup_healthcheck(premature, mod, opts)
   if premature then
@@ -55,8 +58,12 @@ function _M.startup()
     return
   end
 
+  if debug_enabled then
+    common.enable_debug()
+  end
+
   ngx.log(ngx.INFO, "Setup healthcheck job worker #" .. id)
-  
+
   start_job(0, startup_healthcheck, http_hc, { typ = "http", 
                                                healthcheck = {
                                                  command = {
@@ -71,9 +78,8 @@ function _M.startup()
                                                  }
                                                }
                                              })
-  
-  start_job(0, startup_healthcheck, stream_hc, { typ = "tcp" })
 
+  start_job(0, startup_healthcheck, stream_hc, { typ = "tcp" })
 end
 
 return _M
