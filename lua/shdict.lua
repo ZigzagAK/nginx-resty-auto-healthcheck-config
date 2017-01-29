@@ -101,7 +101,7 @@ function shdict_class:delete(key)
 end
 
 function shdict_class:incr(key, value, init)
-  return self.__caches.get(key):incr(key, value, init)
+  return self.__caches.get(key):incr(key, value, init or 0)
 end
 
 function shdict_class:lpush(key, value)
