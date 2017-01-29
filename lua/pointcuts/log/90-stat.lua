@@ -5,8 +5,9 @@ local _M = {
 local upstream = require "ngx.dynamic_upstream"
 local cjson    = require "cjson"
 local lastlog  = require "lastlog"
+local shdict  = require "shdict"
 
-local STAT   = ngx.shared.stat
+local STAT   = shdict.new("stat")
 local CONFIG = ngx.shared.config
 
 local preprocess_uri = CONFIG:get("http.stat.preprocess_uri")
