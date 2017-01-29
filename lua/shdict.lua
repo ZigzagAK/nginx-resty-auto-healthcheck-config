@@ -193,7 +193,7 @@ function shdict_class:get_objects(max_count)
   local v, f
   for i=1,#keys
   do
-    v, f = self:get(keys[i])
+    v, f = self:object_get(keys[i])
     r[i] = { object = v, flags = f }
   end
   return r
