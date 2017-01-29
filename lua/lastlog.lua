@@ -2,13 +2,16 @@ local _M = {
   _VERSION = "1.0.0"
 }
 
-local cjson = require "cjson"
-local lock = require "resty.lock"
-  
-local STAT   = ngx.shared.stat
+local cjson  = require "cjson"
+local shdict = require "shdict"
+local job    = require "job"
+
+local STAT   = shdict.new("stat")
 local CONFIG = ngx.shared.config
 local DATA   = ngx.shared.data
-local DICT   = "data"
+
+local collect_time_min = CONFIG:get("http.stat.collect_time_min") or 1
+local collect_time_max = CONFIG:get("http.stat.collect_time_max") or 7200
 
 local debug_enabled = false
 
@@ -71,11 +74,11 @@ local function pull_statistic()
 
     sett(t, u, arg, status, typ, v)
 
-    if typ == "first_request_time" then
+    if typ == "first" then
       start_time = math.min(v, start_time or v)
     end
 
-    if typ == "last_request_time" then
+    if typ == "last" then
       end_time = math.max(v, end_time or v)
     end
 ::continue::
@@ -89,7 +92,9 @@ local function pull_statistic()
   do
     for status, stat in pairs(data)
     do
-      stat.latency = (stat.latency or 0) / stat.count
+      if stat.latency and stat.count then
+        stat.latency = stat.latency / stat.count
+      end
     end
   end
 
@@ -100,7 +105,9 @@ local function pull_statistic()
     do
       for status, stat in pairs(data)
       do
-        stat.latency = (stat.latency or 0) / stat.count
+        if stat.latency and stat.count then
+          stat.latency = stat.latency / stat.count
+        end
       end
     end
   end
@@ -108,65 +115,47 @@ local function pull_statistic()
   return start_time, end_time, { reqs = reqs, ups = t }
 end
 
-local collect_time_min = CONFIG:get("http.stat.collect_time_min") or 1
-local collect_time_max = CONFIG:get("http.stat.collect_time_max") or 600
+local function purge()
+  local j, count = DATA:get("collector:j") - 1800, 0
+  for i=j,0,-1
+  do
+    STAT:fun("collector[" .. i .. "]", function(value, flags)
+      if not value then
+        i = 0
+      end
+      return nil, 0
+    end)
+    if i ~= 0 then
+      count = count + 1
+    end
+  end
+  ngx.log(ngx.WARN, "stat collector: purge count=", count)
+end
 
 local function do_collect()
-  local start_time, end_time, s = pull_statistic()
+  local start_time, end_time, stat = pull_statistic()
   if not start_time or not end_time then
     return
   end
-  local json = cjson.encode( { start_time = start_time,
-                               end_time = end_time,
-                               stat = s } )
+
+  STAT:flush_expired()
+
   local j = DATA:incr("collector:j", 1, 0)
-  local ok, err, _ = STAT:set("collector[" .. j .. "]", json, collect_time_max)
-  if not ok then
-    ngx.log(ngx.ERR, "stat collector: failed to add statistic into shared memory. Increase [lua_shared_dict stat] or decrease [http.stat.collect_time_max], err:" .. err)
-  end
---debug("stat collector: j=" .. j .. ", size=" .. #json .. ", json:" .. json)
-end
 
-local collector
-collector = function(premature, ctx)
-  if (premature) then
-    return
-  end
-
-  local elapsed, err = ctx.mutex:lock("collector:mutex")
-
-  if elapsed then
-    local now = ngx.now()
-    if DATA:get("collector:next") <= now then
-      DATA:set("collector:next", now + collect_time_min)
-      local ok, err = pcall(do_collect)
-      if not ok then
-        ngx.log(ngx.ERR, "stat collector: pcall(do_collect): ", err)
-      end
-      STAT:flush_expired()
+  for i=1,2
+  do
+    local ok, err = STAT:object_set("collector[" .. j .. "]", { start_time = start_time,
+                                                                end_time   = end_time,
+                                                                stat       = stat },
+                                    collect_time_max)
+    if ok then
+      break
     end
-    ctx.mutex:unlock()
-  else
-    ngx.log(ngx.INFO, "stat collector: can't aquire mutex, err: " .. (err or "?"))
-  end
 
-  local ok, err = ngx.timer.at(collect_time_min, collector, ctx)
-  if not ok then
-    ngx.log(ngx.ERR, "stat collector: failed to continue statistic collector job: ", err)
-  end
-end
+    ngx.log(ngx.ERR, "stat collector: increase [lua_shared_dict stat] or decrease [http.stat.collect_time_max], err: ", err)
 
-function _M.spawn_collector()
-  local ctx = { 
-    mutex = lock:new(DICT)
-  }
-  DATA:safe_set("collector:next", 0)
-  local ok, err = ngx.timer.at(0, collector, ctx)
-  if not ok then
-    ngx.log(ngx.ERR, "stat collector: failed to create statistic collector job: ", err)
-    error("failed to create statistic collector job: " .. err)
+    purge()
   end
-  ngx.log(ngx.INFO, "stat collector: job has been started")
 end
 
 local function merge(l, r)
@@ -183,14 +172,14 @@ local function merge(l, r)
     else
       if k == "latency" or k == "count" then
         l[k] = (l[k] or 0) + v
-      elseif k == "first_request_time" then
+      elseif k == "first" then
         l[k] = math.min(l[k] or v, v)
-      elseif k == "last_request_time" then
+      elseif k == "last" then
         l[k] = math.max(l[k] or v, v)
       end
-      if not l.current_rps and l.count and l.first_request_time and l.last_request_time then
-        if l.last_request_time > l.first_request_time and l.last_request_time >= ngx.now() - 1 then
-          l.current_rps = l.count / (l.last_request_time - l.first_request_time)
+      if not l.current_rps and l.count and l.first and l.last then
+        if l.last > l.first and l.last >= ngx.now() - 1 then
+          l.current_rps = l.count / (l.last - l.first)
         end
       end
     end
@@ -203,15 +192,13 @@ local function get_statistic_impl(now, period)
   local count_ups = 0
   local current_rps = 0
 
-  for j = (DATA:get("collector:j") or 0), 0, -1
+  for j = DATA:get("collector:j") or 0, 0, -1
   do
-    local json = STAT:get("collector[" .. j .. "]")
-    if not json then
+    local stat_j = STAT:object_get("collector[" .. j .. "]")
+    if not stat_j then
       break
     end
 
-    local stat_j = cjson.decode(json) or { stat = nil }
-    
     if not stat_j.stat then
       goto continue
     end
@@ -219,7 +206,7 @@ local function get_statistic_impl(now, period)
     if stat_j.start_time > now + period then
       goto continue
     end
-    
+
     if stat_j.end_time < now then
       break
     end
@@ -238,11 +225,11 @@ local function get_statistic_impl(now, period)
 
   t = { ups  = { upstreams = t.ups, stat = {} },
         reqs = { requests = t.reqs, stat = {} } }
-  
+
   local http_x = {}
 
   -- request statistic
-  
+
   local n = 0
   local sum_latency = 0
   local sum_rps = 0
@@ -295,7 +282,7 @@ local function get_statistic_impl(now, period)
     t.ups.stat[u].average_rps = count / period
     t.ups.stat[u].current_rps = sum_rps
   end
-  
+
   -- sort by latency desc
   for status, reqs in pairs(http_x)
   do
@@ -306,6 +293,8 @@ local function get_statistic_impl(now, period)
 
   return t.reqs, t.ups, http_x, now, now + period
 end
+
+-- public api
 
 function _M.get_statistic(period, backward)
   ngx.update_time()
@@ -346,6 +335,15 @@ function _M.get_statistic_table_from(start_time, period, portion)
                       time = time } )
   end
   return t
+end
+
+function _M.spawn_collector()
+  local startup_job = job.new("stat collector", do_collect, collect_time_min)
+  startup_job:run()
+end
+
+function _M.purge()
+  purge()
 end
 
 return _M

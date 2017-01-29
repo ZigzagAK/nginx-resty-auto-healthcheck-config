@@ -32,43 +32,43 @@ function shdict_class:object_get_stale(key)
 end
 
 function shdict_class:set(key, value, exptime, flags)
-  return self.shm:set(key, value, exptime, flags)
+  return self.shm:set(key, value, exptime or 0, flags or 0)
 end
 
 function shdict_class:object_set(key, value, exptime, flags)
-  return self.shm:set(key, cjson.encode(value), exptime, flags)
+  return self.shm:set(key, cjson.encode(value), exptime or 0, flags or 0)
 end
 
 function shdict_class:set_safe(key, value, exptime, flags)
-  return self.shm:set_safe(key, value, exptime, flags)
+  return self.shm:set_safe(key, value, exptime or 0, flags or 0)
 end
 
 function shdict_class:object_set_safe(key, value, exptime, flags)
-  return self.shm:set_safe(key, cjson.encode(value), exptime, flags)
+  return self.shm:set_safe(key, cjson.encode(value), exptime or 0, flags or 0)
 end
 
 function shdict_class:add(key, value, exptime, flags)
-  return self.shm:add(key, value, exptime, flags)
+  return self.shm:add(key, value, exptime or 0, flags or 0)
 end
 
 function shdict_class:object_add(key, value, exptime, flags)
-  return self.shm:add(key, cjson.encode(value), exptime, flags)
+  return self.shm:add(key, cjson.encode(value), exptime or 0, flags or 0)
 end
 
 function shdict_class:safe_add(key, value, exptime, flags)
-  return self.shm:safe_add(key, value, exptime, flags)
+  return self.shm:safe_add(key, value, exptime or 0, flags or 0)
 end
 
 function shdict_class:object_safe_add(key, value, exptime, flags)
-  return self.shm:safe_add(key, cjson.encode(value), exptime, flags)
+  return self.shm:safe_add(key, cjson.encode(value), exptime or 0, flags or 0)
 end
 
 function shdict_class:replace(key, value, exptime, flags)
-  return self.shm:replace(key, value, exptime, flags)
+  return self.shm:replace(key, value, exptime or 0, flags or 0)
 end
 
 function shdict_class:object_replace(key, value, exptime, flags)
-  return self.shm:replace(key, cjson.encode(value), exptime, flags)
+  return self.shm:replace(key, cjson.encode(value), exptime or 0, flags or 0)
 end
 
 function shdict_class:delete(key)
