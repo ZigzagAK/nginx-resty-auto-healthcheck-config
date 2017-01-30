@@ -1,5 +1,5 @@
 local _M = {
-  _VERSION = "1.0.0"
+  _VERSION = "1.2.0"
 }
 
 local pointcuts = {}
@@ -12,11 +12,11 @@ function _M.make()
     local name = file:match("(.+)%.lua$")
     local ok, r = pcall(require, "pointcuts.init." .. name)
     if not ok  then
-      ngx.log(ngx.WARN, "Loading init pointcut " .. name .. " error:" .. r)
+      ngx.log(ngx.WARN, "Loading init pointcut ", name, ": ", r)
       goto continue
     end
     table.insert(pointcuts, { name = name, m = r })
-    ngx.log(ngx.INFO, "Loaded init pointcut " .. name .. " ...")
+    ngx.log(ngx.INFO, "Loaded init pointcut ", name, " ...")
 ::continue::
   end
   table.sort(pointcuts, function(l, r) return l.name < r.name end)
@@ -27,7 +27,7 @@ function _M.process()
   do
     local ok, err = pcall(pointcut.m.process)
     if not ok then
-      ngx.log(ngx.ERR, "Init pointcut " .. pointcut.name .. " error : " .. err)
+      ngx.log(ngx.ERR, "Init pointcut ", pointcut.name, ": ", err)
     end
   end
 end

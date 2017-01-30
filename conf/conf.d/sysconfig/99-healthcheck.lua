@@ -6,7 +6,7 @@ local CONFIG = ngx.shared.config
 
 function _M.config()
   CONFIG:set("healthcheck.uri", "/")
-  CONFIG:set("healthcheck.interval", 5)
+  CONFIG:set("healthcheck.interval", 10)
   CONFIG:set("healthcheck.timeout", 1000)
   CONFIG:set("healthcheck.fall", 2)
   CONFIG:set("healthcheck.rise", 2)

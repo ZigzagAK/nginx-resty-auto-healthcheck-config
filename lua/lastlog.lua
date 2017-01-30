@@ -1,5 +1,5 @@
 local _M = {
-  _VERSION = "1.0.0"
+  _VERSION = "1.2.0"
 }
 
 local cjson  = require "cjson"
@@ -152,7 +152,7 @@ local function do_collect()
       break
     end
 
-    ngx.log(ngx.ERR, "stat collector: increase [lua_shared_dict stat] or decrease [http.stat.collect_time_max], err: ", err)
+    ngx.log(ngx.ERR, "stat collector: increase [lua_shared_dict stat] or decrease [http.stat.collect_time_max]: ", err)
 
     purge()
   end
