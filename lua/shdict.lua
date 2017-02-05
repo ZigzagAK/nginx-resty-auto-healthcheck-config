@@ -171,7 +171,7 @@ local function get_keys(dict, max_count)
 end
 
 function shdict_class:get_keys(max_count)
-  local parts = get_keys(self, max_count)
+  local parts = get_keys(self, max_count or 0)
   local keys = {}
   for i=1,#parts
   do
@@ -184,7 +184,7 @@ function shdict_class:get_keys(max_count)
 end
 
 function shdict_class:get_values(max_count)
-  local keys = get_keys(self, max_count)
+  local keys = get_keys(self, max_count or 0)
   local r = {}
   local v, f
   for i=1,#keys
@@ -199,7 +199,7 @@ function shdict_class:get_values(max_count)
 end
 
 function shdict_class:get_objects(max_count)
-  local keys = get_keys(self, max_count)
+  local keys = get_keys(self, max_count or 0)
   local r = {}
   local v, f
   for i=1,#keys
