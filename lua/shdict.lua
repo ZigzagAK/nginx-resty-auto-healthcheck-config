@@ -15,7 +15,8 @@ local function make_cache(cache, prefix)
   local shm = ngx.shared[prefix]
   if shm then
     cache.count = 1
-    table.insert(cache.data, shm)
+    cache.data[1] = shm
+    return
   end
 
   for i=1,64
@@ -24,12 +25,11 @@ local function make_cache(cache, prefix)
     if not shm then
       break
     end
-
-    cache.count = cache.count + 1
-    table.insert(cache.data, shm)
-
+    cache.data[i] = shm
     ngx.log(ngx.DEBUG, prefix .. "_" .. i, " found")
   end
+
+  cache.count = #cache.data
 
   if cache.count == 0 then
     error("shared memory [", prefix, "] is not defined")
@@ -156,45 +156,59 @@ function shdict_class:flush_expired()
   end
 end
 
-function shdict_class:get_keys(max_count)
+local function get_keys(dict, max_count)
   local keys = {}
-  local count = max_count / self.__caches.count
-  local j = 1
-  for i=1,self.__caches.count
+  local part, total = max_count / dict.__caches.count, 0
+  for i=1,dict.__caches.count
   do
-    if count ~= 0 and i == self.__caches.count then
-      count = max_count - #keys
+    if part ~= 0 and i == dict.__caches.count then
+      part = max_count - total
     end
-    local chunk = self.__caches.data[i]:get_keys(count)
-    for k=1,#chunk
+    keys[i] = dict.__caches.data[i]:get_keys(part)
+    total = total + #keys[i]
+  end
+  return keys
+end
+
+function shdict_class:get_keys(max_count)
+  local parts = get_keys(self, max_count)
+  local keys = {}
+  for i=1,#parts
+  do
+    for j=1,#parts[i]
     do
-      keys[j] = chunk[k]
-      j = j + 1
+      keys[#keys + 1] = parts[i][j]
     end
   end
   return keys
 end
 
 function shdict_class:get_values(max_count)
-  local keys = self:get_keys(max_count)
+  local keys = get_keys(self, max_count)
   local r = {}
   local v, f
   for i=1,#keys
   do
-    v, f = self:get(keys[i])
-    r[i] = { value = v, flags = f }
+    for j=1,#keys[i]
+    do
+      v, f = self.__caches.data[i]:get(keys[i][j])
+      r[#r + 1] = { value = v, flags = f }
+    end
   end
   return r
 end
 
 function shdict_class:get_objects(max_count)
-  local keys = self:get_keys(max_count)
+  local keys = get_keys(self, max_count)
   local r = {}
   local v, f
   for i=1,#keys
   do
-    v, f = self:object_get(keys[i])
-    r[i] = { object = v, flags = f }
+    for j=1,#keys[i]
+    do
+      v, f = self.__caches.data[i]:get(keys[i][j])
+      r[#r + 1] = { object = decode(v), flags = f }
+    end
   end
   return r
 end
