@@ -178,7 +178,7 @@ local function merge(l, r)
         l[k] = math.max(l[k] or v, v)
       end
       if not l.current_rps and l.count and l.first and l.last then
-        if l.last > l.first and l.last >= ngx.now() - 1 then
+        if l.last > l.first and l.last >= ngx.now() - collect_time_min then
           l.current_rps = l.count / (l.last - l.first)
         end
       end
