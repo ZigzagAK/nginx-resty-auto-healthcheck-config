@@ -128,7 +128,7 @@ __DATA__
 --- config
     location /test {
         content_by_lua_block {
-          local objects = test:get_objects(0)
+          local objects = test:get_objects()
           for i=1,#objects
           do
             sum = sum - objects[i].object.i
