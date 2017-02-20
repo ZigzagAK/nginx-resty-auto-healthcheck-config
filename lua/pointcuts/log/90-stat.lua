@@ -74,7 +74,8 @@ local function accum_upstream_stat()
 end
 
 local function accum_uri_stat()
-  local uri = ngx.var.uri
+  local orig_uri = ngx.var.request_uri
+  local uri = orig_uri:sub(orig_uri:find("[^%?]+"))
   local ok, transformed
 
   if preprocess_uri then
