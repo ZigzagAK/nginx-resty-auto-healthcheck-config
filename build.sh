@@ -226,7 +226,7 @@ function download() {
   download_module ZigzagAK    ngx_dynamic_upstream_lua         master
   download_module ZigzagAK    stream-lua-nginx-module          fix-compile-1.11.4
   download_module simpl       ngx_devel_kit                    master
-  download_module openresty   lua-nginx-module                 master
+  download_module ZigzagAK    lua-nginx-module                 mixed
   download_module openresty   lua-cjson                        master
 
   cd ..
