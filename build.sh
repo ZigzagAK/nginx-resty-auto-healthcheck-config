@@ -337,6 +337,8 @@ function install_lua_modules() {
   install_file lua/lastlog.lua                      lua
   install_file lua/job.lua                          lua
   install_file lua/system.lua                       lua
+  install_file lua/shdict.lua                       lua
+  install_file lua/shdict_ex.lua                    lua
   install_file lua/initd                            lua
   install_file lua/pointcuts/access_by.lua          lua/pointcuts
   install_file lua/pointcuts/init_by.lua            lua/pointcuts

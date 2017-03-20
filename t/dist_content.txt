@@ -10,11 +10,14 @@ nginx-1.11.6/conf/conf.d/healthcheck/javascript/jquery-1.9.1.js
 nginx-1.11.6/conf/conf.d/init/
 nginx-1.11.6/conf/conf.d/init/http.conf
 nginx-1.11.6/conf/conf.d/init/stream.conf
+nginx-1.11.6/conf/conf.d/lastlog/
+nginx-1.11.6/conf/conf.d/lastlog.conf
+nginx-1.11.6/conf/conf.d/lastlog/lastlog.conf
 nginx-1.11.6/conf/conf.d/main/
 nginx-1.11.6/conf/conf.d/main/.keep
 nginx-1.11.6/conf/conf.d/optional/
 nginx-1.11.6/conf/conf.d/optional/http/
-nginx-1.11.6/conf/conf.d/optional/http/lastlog.conf
+nginx-1.11.6/conf/conf.d/optional/http/.keep
 nginx-1.11.6/conf/conf.d/optional/stream/
 nginx-1.11.6/conf/conf.d/optional/stream/.keep
 nginx-1.11.6/conf/conf.d/other/
@@ -113,7 +116,6 @@ nginx-1.11.6/lua/job.lua
 nginx-1.11.6/lua/lastlog.lua
 nginx-1.11.6/lua/pointcuts/
 nginx-1.11.6/lua/pointcuts/access/
-nginx-1.11.6/lua/pointcuts/access/01-stat.lua.off
 nginx-1.11.6/lua/pointcuts/access_by.lua
 nginx-1.11.6/lua/pointcuts/init/
 nginx-1.11.6/lua/pointcuts/init_by.lua
@@ -121,6 +123,8 @@ nginx-1.11.6/lua/pointcuts/init/.keep
 nginx-1.11.6/lua/pointcuts/log/
 nginx-1.11.6/lua/pointcuts/log/90-stat.lua
 nginx-1.11.6/lua/pointcuts/log_by.lua
+nginx-1.11.6/lua/shdict_ex.lua
+nginx-1.11.6/lua/shdict.lua
 nginx-1.11.6/lua/system.lua
 nginx-1.11.6/restart.sh
 nginx-1.11.6/sbin/
