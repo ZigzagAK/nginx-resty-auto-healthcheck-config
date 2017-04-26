@@ -213,18 +213,18 @@ function shdict_class:get_objects(max_count)
   return r
 end
 
-function shdict_class:fun(key, fun)
-  return self.__caches.get(key):fun(key, fun)
+function shdict_class:fun(key, fun, exptime)
+  return self.__caches.get(key):fun(key, fun, exptime)
 end
 
-function shdict_class:object_fun(key, fun)
+function shdict_class:object_fun(key, fun, exptime)
   local value, flags = self.__caches.get(key):fun(key, function(value, flags)
     local object, new_flags = fun(decode(value), flags)
     if object then
       return cjson.encode(object), new_flags
     end
     return nil, new_flags
-  end)
+  end, exptime)
   return decode(value), flags
 end
 
