@@ -214,7 +214,7 @@ function shdict_class:get_objects(max_count)
 end
 
 function shdict_class:fun(key, fun, exptime)
-  return self.__caches.get(key):fun(key, fun, exptime)
+  return self.__caches.get(key):fun(key, fun, exptime or 0)
 end
 
 function shdict_class:object_fun(key, fun, exptime)
@@ -224,7 +224,7 @@ function shdict_class:object_fun(key, fun, exptime)
       return cjson.encode(object), new_flags
     end
     return nil, new_flags
-  end, exptime)
+  end, exptime or 0)
   return decode(value), flags
 end
 
