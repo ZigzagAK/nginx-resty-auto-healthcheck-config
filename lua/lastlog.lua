@@ -237,6 +237,7 @@ local function get_statistic_impl(now, period)
 
   for uri, data in pairs(t.reqs.requests)
   do
+    local req_count = 0
     for status, stat in pairs(data)
     do
       stat.latency = (stat.latency or 0) / count_reqs
@@ -245,10 +246,12 @@ local function get_statistic_impl(now, period)
       end
       table.insert(http_x[status], { uri = uri or "?", stat = stat })
       count = count + stat.count
+      req_count = req_count + stat.count 
       sum_rps = sum_rps + (stat.current_rps or 0)
       sum_latency = sum_latency + stat.latency
       n = n + 1
     end
+    data.count = req_count
   end
 
   if n ~= 0 then
