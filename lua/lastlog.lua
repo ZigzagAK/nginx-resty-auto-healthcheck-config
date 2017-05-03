@@ -235,7 +235,7 @@ local function get_statistic_impl(now, period)
     do
       stat.latency = (stat.latency or 0) / stat.recs
       local p = stat.last - stat.first
-      if p > 0 then
+      if p > 0 and stat.last > ngx.now() - collect_time_min then
         stat.current_rps = stat.count / p
       else
         stat.current_rps = 0
@@ -270,7 +270,7 @@ local function get_statistic_impl(now, period)
       do
         stat.latency = (stat.latency or 0) / stat.recs
         local p = stat.last - stat.first
-        if p > 0 then
+        if p > 0 and stat.last > ngx.now() - collect_time_min then
           stat.current_rps = stat.count / p
         else
           stat.current_rps = 0
