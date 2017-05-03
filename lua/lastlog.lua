@@ -1,5 +1,5 @@
 local _M = {
-  _VERSION = "1.2.0"
+  _VERSION = "1.5.1"
 }
 
 local cjson  = require "cjson"
@@ -224,7 +224,6 @@ local function get_statistic_impl(now, period)
 
   -- request statistic
 
-  local n = 0
   local sum_latency = 0
   local sum_rps = 0
   local count = 0
@@ -248,14 +247,13 @@ local function get_statistic_impl(now, period)
       count = count + stat.count
       req_count = req_count + stat.count
       sum_rps = sum_rps + stat.current_rps
-      sum_latency = sum_latency + stat.latency
-      n = n + 1
+      sum_latency = sum_latency + stat.latency * stat.count
     end
     data.count = req_count
   end
 
-  if n ~= 0 then
-    t.reqs.stat.average_latency = sum_latency / n
+  if count ~= 0 then
+    t.reqs.stat.average_latency = sum_latency / count
   end
   t.reqs.stat.average_rps = count / period
   t.reqs.stat.current_rps = sum_rps
@@ -263,7 +261,6 @@ local function get_statistic_impl(now, period)
   -- upstream statistic
   for u, peers in pairs(t.ups.upstreams)
   do
-    n = 0
     sum_latency = 0
     sum_rps = 0
     count = 0
@@ -279,14 +276,13 @@ local function get_statistic_impl(now, period)
           stat.current_rps = 0
         end
         count = count + stat.count
-        sum_latency = sum_latency + stat.latency
+        sum_latency = sum_latency + stat.latency * stat.count
         sum_rps = sum_rps + stat.current_rps
-        n = n + 1
       end
     end
-    if n ~= 0 then
+    if count ~= 0 then
       t.ups.stat[u] = {}
-      t.ups.stat[u].average_latency = sum_latency / n
+      t.ups.stat[u].average_latency = sum_latency / count
     end
     t.ups.stat[u].average_rps = count / period
     t.ups.stat[u].current_rps = sum_rps
