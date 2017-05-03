@@ -170,17 +170,15 @@ local function merge(l, r)
       end
       merge(l[k], v)
     else
-      if k == "latency" or k == "count" then
-        l[k] = (l[k] or 0) + v
+      if k == "latency" then
+        l.latency = (l.latency or 0) + v
+      elseif k == "count" then
+        l.count = (l.count or 0) + v
       elseif k == "first" then
-        l[k] = math.min(l[k] or v, v)
+        l.first = math.min(l[k] or v, v)
       elseif k == "last" then
-        l[k] = math.max(l[k] or v, v)
-      end
-      if not l.current_rps and l.count and l.first and l.last then
-        if l.last > l.first and l.last >= ngx.now() - collect_time_min then
-          l.current_rps = l.count / (l.last - l.first)
-        end
+        l.last = math.max(l[k] or v, v)
+        l.recs = (l.recs or 0) + 1
       end
     end
   end
@@ -188,8 +186,6 @@ end
 
 local function get_statistic_impl(now, period)
   local t = { reqs = {}, ups = {} }
-  local count_reqs = 0
-  local count_ups = 0
   local current_rps = 0
 
   for j = DATA:get("collector:j") or 0, 0, -1
@@ -213,12 +209,10 @@ local function get_statistic_impl(now, period)
 
     if stat_j.stat.reqs then
       merge(t.reqs, stat_j.stat.reqs)
-      count_reqs = count_reqs + 1
     end
 
     if stat_j.stat.ups then
       merge(t.ups, stat_j.stat.ups)
-      count_ups = count_ups + 1
     end
 :: continue::
   end
@@ -240,14 +234,20 @@ local function get_statistic_impl(now, period)
     local req_count = 0
     for status, stat in pairs(data)
     do
-      stat.latency = (stat.latency or 0) / count_reqs
+      stat.latency = (stat.latency or 0) / stat.recs
+      local p = stat.last - stat.first
+      if p > 0 then
+        stat.current_rps = stat.count / p
+      else
+        stat.current_rps = 0
+      end
       if not http_x[status] then
         http_x[status] = {}
       end
       table.insert(http_x[status], { uri = uri or "?", stat = stat })
       count = count + stat.count
-      req_count = req_count + stat.count 
-      sum_rps = sum_rps + (stat.current_rps or 0)
+      req_count = req_count + stat.count
+      sum_rps = sum_rps + stat.current_rps
       sum_latency = sum_latency + stat.latency
       n = n + 1
     end
@@ -271,10 +271,16 @@ local function get_statistic_impl(now, period)
     do
       for status, stat in pairs(data)
       do
-        stat.latency = (stat.latency or 0) / count_ups
+        stat.latency = (stat.latency or 0) / stat.recs
+        local p = stat.last - stat.first
+        if p > 0 then
+          stat.current_rps = stat.count / p
+        else
+          stat.current_rps = 0
+        end
         count = count + stat.count
         sum_latency = sum_latency + stat.latency
-        sum_rps = sum_rps + (stat.current_rps or 0)
+        sum_rps = sum_rps + stat.current_rps
         n = n + 1
       end
     end
