@@ -1,5 +1,5 @@
 local _M = {
-  _VERSION = "1.6.0"
+  _VERSION = "1.7.0"
 }
 
 local HEALTHCHECK = ngx.shared.healthcheck
@@ -11,6 +11,36 @@ local function set_peer(upstream, peer, fun)
     ngx.exit(ngx.status)
   end
   fun(HEALTHCHECK, upstream, peer)
+end
+
+local function set_ip(upstream, selected_ip, fun)
+  local ok, upstreams, err = upstream.get_upstreams()
+  if not ok then
+    ngx.status = ngx.HTTP_INTERNAL_SERVER_ERROR
+    ngx.say(err)
+    ngx.exit(ngx.status)
+  end
+
+  for j=1,#upstreams
+  do
+    local u = upstreams[j]
+    local ok, peers, err = upstream.get_peers(u)
+    if not ok then
+      ngx.status = ngx.HTTP_INTERNAL_SERVER_ERROR
+      ngx.say(err)
+      ngx.exit(ngx.status)
+    end
+
+    for i=1,#peers
+    do
+      local peer = peers[i]
+      local ip, port = peer.name:match("(.+):(%d+)")
+      if not selected_ip or selected_ip == ip then
+        fun(HEALTHCHECK, u, peer.name)
+        ngx.say(u .. " " .. peer.name)
+      end
+    end
+  end
 end
 
 local function set_upstream(upstream, upstream_name, upstream_fun, fun)
@@ -72,6 +102,12 @@ _M.http = {
   disable_upstream = function(upstream)
     set_upstream_primary(upstream_http, upstream, http.disable_peer)
     set_upstream_backup(upstream_http, upstream, http.disable_peer)
+  end,
+  enable_ip = function(ip)
+    set_ip(upstream_http, ip, http.enable_peer)
+  end,
+  disable_ip = function(ip)
+    set_ip(upstream_http, ip, http.disable_peer)
   end
 }
 
@@ -101,6 +137,12 @@ _M.stream = {
   disable_upstream = function(upstream)
     set_upstream_primary(upstream_stream, upstream, stream.disable_peer)
     set_upstream_backup(upstream_stream, upstream, stream.disable_peer)
+  end,
+  enable_ip = function(ip)
+    set_ip(upstream_stream, ip, stream.enable_peer)
+  end,
+  disable_ip = function(ip)
+    set_ip(upstream_stream, ip, stream.disable_peer)
   end
 }
 
