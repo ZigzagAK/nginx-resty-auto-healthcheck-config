@@ -1,5 +1,5 @@
 local _M = {
-  _VERSION = "1.2.0"
+  _VERSION = "1.8.0"
 }
 
 local upstream = require "ngx.dynamic_upstream"
@@ -7,18 +7,12 @@ local cjson    = require "cjson"
 local lastlog  = require "lastlog"
 local shdict  = require "shdict"
 
+local tinsert = table.insert
+
 local STAT   = shdict.new("stat")
 local CONFIG = ngx.shared.config
 
 local preprocess_uri = CONFIG:get("http.stat.preprocess_uri")
-
-local debug_enabled = false
-
-local function debug(...)
-  if debug_enabled then
-    ngx.log(ngx.DEBUG, ...)
-  end
-end
 
 if preprocess_uri then
   local gsub_mod_name, gsub_mod_func = preprocess_uri:match("(.+)%.(.+)$")
@@ -37,7 +31,16 @@ local function get_request_time()
   return now - request_time, request_time
 end
 
-local function accum_upstream_stat()
+local function split(s)
+  local t = {}
+  for p in s:gmatch("([^%s,]+)")
+  do
+    tinsert(t, p)
+  end
+  return t
+end
+
+local function accum_upstream_stat(start_request_time)
   local ok, u, err = upstream.current_upstream()
   if not u then
     u = "proxypass"
@@ -48,33 +51,26 @@ local function accum_upstream_stat()
     return
   end
 
-  upstream_addr = upstream_addr:match("([^%s,]+)$") -- get last from chain
+  local addrs, codes, times = split(upstream_addr), split(ngx.var.upstream_status), split(ngx.var.upstream_response_time) or 0
 
-  if u == upstream_addr then
-    -- error query
-    upstream_addr = "ERROR"
+  for i=1,#addrs
+  do
+    local upstream_addr = addrs[i] 
+    if upstream_addr == u then
+      -- error query
+      upstream_addr = "ERROR"
+    end
+
+    lastlog.add_ups_stat(u,
+                         codes[i] or "???",
+                         upstream_addr,
+                         start_request_time,
+                         times[i])
   end
-
-  local upstream_status        = ngx.var.upstream_status:match("(%d+)$")                           -- get last from chain
-  local upstream_response_time = tonumber(ngx.var.upstream_response_time:match("([%d%.]+)$") or 0) -- get last from chain
-
-  local key = u .. "|" .. (upstream_status or 499) .. "|" .. upstream_addr
-  local start_request_time = ngx.now() - upstream_response_time
-
-  ok, err = STAT:add("first:"    .. key, start_request_time)        -- first request start time
-  ok, err = STAT:set("last:"     .. key, start_request_time)        -- last request start time
-  ok, err = STAT:incr("count:"   .. key, 1, 0)                      -- upstream request count by status
-  ok, err = STAT:incr("latency:" .. key, upstream_response_time, 0) -- upstream total latency by status
-
-  if not ok then
-    error(err)
-  end
-
-  debug("stat pointcut: key=", key, " start_request_time=", start_request_time, " upstream_response_time=", upstream_response_time)
 end
 
 local function accum_uri_stat()
-  local orig_uri = ngx.var.request_uri
+  local orig_uri = ngx.var.request_uri or "/"
   local uri = orig_uri:sub(orig_uri:find("[^%?]+"))
   local ok, transformed
 
@@ -86,28 +82,21 @@ local function accum_uri_stat()
     end
   end
 
-  local key = "none|" .. (ngx.var.status or 499) .. "|" .. (uri or "/")
   local start_request_time, request_time = get_request_time()
 
-  local err
+  lastlog.add_uri_stat(uri or "/",
+                       ngx.var.status or "???",
+                       start_request_time,
+                       request_time)
 
-  ok, err = STAT:add("first:"    .. key, start_request_time) -- first request start time
-  ok, err = STAT:set("last:"     .. key, start_request_time) -- last request start time
-  ok, err = STAT:incr("count:"   .. key, 1, 0)               -- uri request count by status
-  ok, err = STAT:incr("latency:" .. key, request_time, 0)    -- uri request total latency by status
-
-  if not ok then
-    error(err)
-  end
-
-  debug("stat pointcut: key=", key, " start_request_time=", start_request_time, " latency=", request_time)
+  return start_request_time
 end
 
 function _M.process()
   ngx.update_time()
-  local ok, err = pcall(accum_upstream_stat)
+  local ok, start_request_time, err = pcall(accum_uri_stat)
   if ok then
-    ok, err = pcall(accum_uri_stat)
+    ok, err = pcall(accum_upstream_stat, start_request_time)
   end
   if not ok then
     if err == "no memory" then
