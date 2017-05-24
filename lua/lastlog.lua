@@ -1,97 +1,42 @@
 local _M = {
-  _VERSION = "1.5.1"
+  _VERSION = "1.8.0"
 }
 
 local cjson  = require "cjson"
 local shdict = require "shdict"
 local job    = require "job"
 
-local STAT   = shdict.new("stat")
+local STAT = shdict.new("stat")
+local STAT_BUFFER = shdict.new("stat_buffer")
+
 local CONFIG = ngx.shared.config
-local DATA   = ngx.shared.data
 
 local collect_time_min = CONFIG:get("http.stat.collect_time_min") or 1
 local collect_time_max = CONFIG:get("http.stat.collect_time_max") or 7200
 
-local debug_enabled = false
+local id = ngx.worker.id()
+local req_queue, ups_queue, buffer_key = "r:" .. id, "u:" .. id, "b:" .. id
 
-local function debug(...)
-  if debug_enabled then
-    ngx.log(ngx.DEBUG, ...)
-  end
-end
+local buffer = {
+  reqs = {}, ups = {}
+}
 
-local function is_cumulative(k)
-  return k == "count" or k == "latency"
-end
-
-local function sett(t, ...)
-  local n = select("#",...)
-  for i=1,n
-  do
-    local k = select(i,...)
-    if i == n - 1 then
-      local v = select(n,...)
-      if is_cumulative(k) then
-        t[k] = (t[k] or 0) + v
-      else
-        t[k] = v
-      end
-      return
-    end
-    if not t[k] then
-      t[k] = {}
-    end
-    t = t[k]
-  end
-  return t
-end
+local tinsert, tconcat = table.insert, table.concat
 
 local function pull_statistic()
-  local t = {}
-  local keys = STAT:get_keys(0)
-  local start_time, end_time
-
-  if not keys then
-    debug("stat collector: no keys")
-    return nil, nil, { reqs = {}, ups = {} }
+  if not next(buffer.reqs) then
+    return
   end
 
-  debug("stat collector: keys=", #keys)
-
-  for _, key in pairs(keys)
-  do
-    local typ, u, status, arg = key:match("^(.+):(.+)|(.+)|(.+)$")
-
-    if not arg then
-      goto continue
-    end
-
-    local v = STAT:get(key)
-    STAT:delete(key)
-
---  debug("stat collector: key=" .. key .. ", value=" .. v)
-
-    sett(t, u, arg, status, typ, v)
-
-    if typ == "first" then
-      start_time = math.min(v, start_time or v)
-    end
-
-    if typ == "last" then
-      end_time = math.max(v, end_time or v)
-    end
-::continue::
-  end
-
-  local reqs = t["none"] or {}
-  t["none"] = nil
+  local start_time, end_time = ngx.now(), 0
 
   -- request statistic
-  for uri, data in pairs(reqs)
+  for _, uri_data in pairs(buffer.reqs or {})
   do
-    for status, stat in pairs(data)
+    for _, stat in pairs(uri_data)
     do
+      start_time = math.min(stat.first, start_time)
+      end_time = math.max(stat.last, end_time)
       if stat.latency and stat.count then
         stat.latency = stat.latency / stat.count
       end
@@ -99,11 +44,11 @@ local function pull_statistic()
   end
 
   -- upstream statistic
-  for uri, peers in pairs(t)
+  for _, upstream_data in pairs(buffer.ups or {})
   do
-    for _, data in pairs(peers)
+    for _, addr_data in pairs(upstream_data)
     do
-      for status, stat in pairs(data)
+      for _, stat in pairs(addr_data)
       do
         if stat.latency and stat.count then
           stat.latency = stat.latency / stat.count
@@ -112,14 +57,24 @@ local function pull_statistic()
     end
   end
 
-  return start_time, end_time, { reqs = reqs, ups = t }
+  local r = buffer
+
+  buffer = {
+    reqs = {}, ups = {}
+  }
+
+  STAT:delete(buffer_key)
+  STAT_BUFFER:delete(req_queue)
+  STAT_BUFFER:delete(ups_queue)
+
+  return start_time, end_time, r
 end
 
 local function purge()
-  local j, count = DATA:get("collector:j") - 1800, 0
+  local j, count = CONFIG:get("collector:j") - 1800, 0
   for i=j,0,-1
   do
-    STAT:fun("collector[" .. i .. "]", function(value, flags)
+    STAT:fun(i, function(value, flags)
       if not value then
         i = 0
       end
@@ -140,13 +95,13 @@ local function do_collect()
 
   STAT:flush_expired()
 
-  local j = DATA:incr("collector:j", 1, 0)
+  local j = CONFIG:incr("collector:j", 1, 0)
 
   for i=1,2
   do
-    local ok, err = STAT:object_set("collector[" .. j .. "]", { start_time = start_time,
-                                                                end_time   = end_time,
-                                                                stat       = stat },
+    local ok, err = STAT:object_set(j, { start_time = start_time,
+                                         end_time   = end_time,
+                                         stat       = stat },
                                     collect_time_max)
     if ok then
       break
@@ -188,9 +143,9 @@ local function get_statistic_impl(now, period)
   local t = { reqs = {}, ups = {} }
   local current_rps = 0
 
-  for j = DATA:get("collector:j") or 0, 0, -1
+  for j = CONFIG:get("collector:j") or 0, 0, -1
   do
-    local stat_j = STAT:object_get("collector[" .. j .. "]")
+    local stat_j = STAT:object_get(j)
     if not stat_j then
       break
     end
@@ -214,7 +169,7 @@ local function get_statistic_impl(now, period)
     if stat_j.stat.ups then
       merge(t.ups, stat_j.stat.ups)
     end
-:: continue::
+:: continue ::
   end
 
   t = { ups  = { upstreams = t.ups, stat = {} },
@@ -243,7 +198,7 @@ local function get_statistic_impl(now, period)
       if not http_x[status] then
         http_x[status] = {}
       end
-      table.insert(http_x[status], { uri = uri or "?", stat = stat })
+      tinsert(http_x[status], { uri = uri or "?", stat = stat })
       count = count + stat.count
       req_count = req_count + stat.count
       sum_rps = sum_rps + stat.current_rps
@@ -294,8 +249,6 @@ local function get_statistic_impl(now, period)
     table.sort(reqs, function(l, r) return l.stat.latency > r.stat.latency end)
   end
 
-  debug("stat collector: ", cjson.encode({ reqs = t.reqs, ups = t.ups, http_x = http_x }))
-
   return t.reqs, t.ups, http_x, now, now + period
 end
 
@@ -320,10 +273,10 @@ function _M.get_statistic_table(period, portion, backward)
   for time = now - (backward or 0) - (period or 60), now - (backward or 0), portion or 60
   do
     local reqs, ups, http_x, _, _ = get_statistic_impl(time, portion or 60)
-    table.insert(t, { requests_statistic = reqs,
-                      upstream_staistic = ups,
-                      http_x = http_x,
-                      time = time } )
+    tinsert(t, { requests_statistic = reqs,
+                 upstream_staistic = ups,
+                 http_x = http_x,
+                 time = time } )
   end
   return t
 end
@@ -334,21 +287,96 @@ function _M.get_statistic_table_from(start_time, period, portion)
   for time = start_time, start_time + (period or ngx.now() - start_time), portion or 60
   do
     local reqs, ups, http_x, _, _ = get_statistic_impl(time, portion or 60)
-    table.insert(t, { requests_statistic = reqs,
-                      upstream_staistic = ups,
-                      http_x = http_x,
-                      time = time } )
+    tinsert(t, { requests_statistic = reqs,
+                 upstream_staistic = ups,
+                 http_x = http_x,
+                 time = time } )
   end
   return t
 end
 
+local function gett(t, ...)
+  local n = select("#",...)
+  for i=1,n
+  do
+    local k = select(i,...)
+    local p = t[k]
+    if not p then
+      p = {}
+      t[k] = p
+    end
+    t = p
+  end
+  return t
+end
+
+local check_point = ngx.now()
+
+local function try_check_point()
+  local now = ngx.now()
+  if check_point > now then
+    return
+  end
+
+  STAT:object_set(buffer_key, buffer)
+
+  STAT_BUFFER:delete(req_queue)
+  STAT_BUFFER:delete(ups_queue)
+
+  check_point = now + 1
+end
+
+local function add_stat(t, start_time, latency)
+  if next(t) then
+    t.first, t.last, t.count, t.latency = math.min(t.first, start_time), math.max(t.last, start_time), t.count + 1, t.latency + latency
+  else
+    t.first, t.last, t.count, t.latency = start_time, start_time, 1, latency
+  end
+  try_check_point()
+end
+
 function _M.spawn_collector()
-  local startup_job = job.new("stat collector", do_collect, collect_time_min)
-  startup_job:run()
+  buffer = STAT:object_get(buffer_key) or {
+    reqs = {}, ups = {}
+  }
+
+  repeat
+    local req = STAT_BUFFER:lpop(req_queue)
+    if req then
+      local uri, status, start_time, request_time = req:match("(.+)%|(.+)%|(.+)%|(.+)")
+      add_stat(gett(buffer.reqs, uri, status),
+               start_time, request_time)
+    end
+  until not req
+
+  repeat
+    local req = STAT_BUFFER:lpop(ups_queue)
+    if req then
+      local upstream, status, addr, start_time, response_time = req:match("(.+)%|(.+)%|(.+)%|(.+)%|(.+)")
+      add_stat(gett(buffer.ups, upstream, addr, status),
+               start_time, response_time)
+    end
+  until not req
+
+  STAT:object_set(buffer_key, buffer)
+
+  job.new("Stat collector worker #=" .. id, do_collect, collect_time_min):run()
 end
 
 function _M.purge()
   purge()
+end
+
+function _M.add_uri_stat(uri, status, start_time, request_time)
+  STAT_BUFFER:rpush(req_queue, tconcat( { uri, status, start_time, request_time }, "|" ))
+  add_stat(gett(buffer.reqs, uri, status),
+           start_time, request_time)
+end
+
+function _M.add_ups_stat(upstream, status, addr, start_time, response_time)
+  STAT_BUFFER:rpush(ups_queue, tconcat( { upstream, status, addr, start_time, response_time }, "|" ))
+  add_stat(gett(buffer.ups, upstream, addr, status),
+           start_time, response_time)
 end
 
 return _M
