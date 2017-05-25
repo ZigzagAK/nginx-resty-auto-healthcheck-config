@@ -33,13 +33,11 @@ local function pull_statistic()
   -- request statistic
   for _, uri_data in pairs(buffer.reqs or {})
   do
-    for _, stat in pairs(uri_data)
+    for status, stat in pairs(uri_data)
     do
       start_time = math.min(stat.first, start_time)
       end_time = math.max(stat.last, end_time)
-      if stat.latency and stat.count then
-        stat.latency = stat.latency / stat.count
-      end
+      uri_data[status] = tconcat( { stat.first, stat.last, stat.latency / stat.count, stat.count }, "|")
     end
   end
 
@@ -48,11 +46,9 @@ local function pull_statistic()
   do
     for _, addr_data in pairs(upstream_data)
     do
-      for _, stat in pairs(addr_data)
+      for status, stat in pairs(addr_data)
       do
-        if stat.latency and stat.count then
-          stat.latency = stat.latency / stat.count
-        end
+        addr_data[status] = tconcat( { stat.first, stat.last, stat.latency / stat.count, stat.count }, "|")
       end
     end
   end
@@ -114,10 +110,7 @@ local function do_collect()
 end
 
 local function merge(l, r)
-  if not r then
-    return
-  end
-  for k, v in pairs(r)
+  for k, v in pairs(r or {})
   do
     if type(v) == "table" then
       if not l[k] then
@@ -125,16 +118,21 @@ local function merge(l, r)
       end
       merge(l[k], v)
     else
-      if k == "latency" then
-        l.latency = (l.latency or 0) + v
-      elseif k == "count" then
-        l.count = (l.count or 0) + v
-      elseif k == "first" then
-        l.first = math.min(l[k] or v, v)
-      elseif k == "last" then
-        l.last = math.max(l[k] or v, v)
-        l.recs = (l.recs or 0) + 1
+      if not l[k] then
+        l[k] = {
+          latency = 0,
+          count = 0,
+          recs = 0,
+          first = ngx.now(),
+          last = 0
+        }
       end
+      local first, last, latency, count = v:match("(.+)|(.+)|(.+)|(.+)")
+      l[k].first = math.min(l[k].first, first)
+      l[k].last = math.max(l[k].last, last)
+      l[k].latency = l[k].latency + tonumber(latency)
+      l[k].count = l[k].count + tonumber(count)
+      l[k].recs = l[k].recs + 1
     end
   end
 end
@@ -344,7 +342,7 @@ function _M.spawn_collector()
   repeat
     local req = STAT_BUFFER:lpop(req_queue)
     if req then
-      local uri, status, start_time, request_time = req:match("(.+)%|(.+)%|(.+)%|(.+)")
+      local uri, status, start_time, request_time = req:match("(.+)|(.+)|(.+)|(.+)")
       add_stat(gett(buffer.reqs, uri, status),
                start_time, request_time)
     end
@@ -353,7 +351,7 @@ function _M.spawn_collector()
   repeat
     local req = STAT_BUFFER:lpop(ups_queue)
     if req then
-      local upstream, status, addr, start_time, response_time = req:match("(.+)%|(.+)%|(.+)%|(.+)%|(.+)")
+      local upstream, status, addr, start_time, response_time = req:match("(.+)|(.+)|(.+)|(.+)|(.+)")
       add_stat(gett(buffer.ups, upstream, addr, status),
                start_time, response_time)
     end
