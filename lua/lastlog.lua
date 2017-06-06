@@ -1,5 +1,5 @@
 local _M = {
-  _VERSION = "1.8.0"
+  _VERSION = "1.8.1"
 }
 
 local cjson  = require "cjson"
@@ -124,7 +124,8 @@ local function merge(l, r)
           count = 0,
           recs = 0,
           first = ngx.now(),
-          last = 0
+          last = 0,
+          current_rps = 0
         }
       end
       local first, last, latency, count = v:match("(.+)|(.+)|(.+)|(.+)")
@@ -133,6 +134,10 @@ local function merge(l, r)
       l[k].latency = l[k].latency + tonumber(latency)
       l[k].count = l[k].count + tonumber(count)
       l[k].recs = l[k].recs + 1
+      local p = tonumber(last) - tonumber(first)
+      if p > 0 and tonumber(last) >= ngx.now() - collect_time_min then
+        l[k].current_rps = l[k].current_rps + tonumber(count) / p
+      end
     end
   end
 end
@@ -187,12 +192,6 @@ local function get_statistic_impl(now, period)
     for status, stat in pairs(data)
     do
       stat.latency = (stat.latency or 0) / stat.recs
-      local p = stat.last - stat.first
-      if p > 0 and stat.last > ngx.now() - collect_time_min then
-        stat.current_rps = stat.count / p
-      else
-        stat.current_rps = 0
-      end
       if not http_x[status] then
         http_x[status] = {}
       end
@@ -222,12 +221,6 @@ local function get_statistic_impl(now, period)
       for status, stat in pairs(data)
       do
         stat.latency = (stat.latency or 0) / stat.recs
-        local p = stat.last - stat.first
-        if p > 0 and stat.last > ngx.now() - collect_time_min then
-          stat.current_rps = stat.count / p
-        else
-          stat.current_rps = 0
-        end
         count = count + stat.count
         sum_latency = sum_latency + stat.latency * stat.count
         sum_rps = sum_rps + stat.current_rps
