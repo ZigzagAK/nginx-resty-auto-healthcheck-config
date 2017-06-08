@@ -77,7 +77,6 @@ function build_debug() {
               --add-module=../ngx_devel_kit \
               --add-module=../lua-nginx-module \
               --add-module=../stream-lua-nginx-module \
-              --add-module=../nginx-sticky-module-ng \
               --add-module=../ngx_dynamic_upstream \
               --add-module=../ngx_dynamic_upstream_lua > /dev/null
 
@@ -110,7 +109,6 @@ function build_release() {
               --add-module=../ngx_devel_kit \
               --add-module=../lua-nginx-module \
               --add-module=../stream-lua-nginx-module \
-              --add-module=../nginx-sticky-module-ng \
               --add-module=../ngx_dynamic_upstream \
               --add-module=../ngx_dynamic_upstream_lua > /dev/null
 
@@ -154,18 +152,6 @@ function gitclone() {
   git clone $1 > /dev/null 2> /tmp/err
   if [ $? -ne 0 ]; then
     cat /tmp/err
-  fi
-}
-
-function download_sticky() {
-  if [ $download -eq 1 ] || [ ! -e nginx-sticky-module-ng.tar.gz ]; then
-    echo "Download nginx-sticky-module-ng"
-    rm -rf nginx-sticky-module-ng
-    gitclone https://bitbucket.org/nginx-goodies/nginx-sticky-module-ng.git
-    tar zcf nginx-sticky-module-ng.tar.gz nginx-sticky-module-ng
-    rm -rf nginx-sticky-module-ng
-  else 
-    echo "Get nginx-sticky-module-ng"
   fi
 }
 
@@ -219,7 +205,6 @@ function download() {
 
   download_luajit
   download_pcre
-  download_sticky
   download_nginx
 
   download_module ZigzagAK    ngx_dynamic_upstream             master
@@ -251,7 +236,6 @@ function build() {
   cd build
 
   patch -N -p0 < ../lua-cjson-Makefile.patch
-  patch -N -p0 < ../ngx_http_sticky_misc.patch
 
   if [ $build_deps -eq 1 ] || [ ! -e deps/luajit ]; then
     build_luajit
@@ -343,7 +327,6 @@ function install_lua_modules() {
   install_file lua/pointcuts/access_by.lua          lua/pointcuts
   install_file lua/pointcuts/init_by.lua            lua/pointcuts
   install_file lua/pointcuts/log_by.lua             lua/pointcuts
-  install_file lua/pointcuts/access/01-stat.lua.off lua/pointcuts/access
   install_file lua/pointcuts/init                   lua/pointcuts
   install_file lua/pointcuts/log/90-stat.lua        lua/pointcuts/log
   install_file conf                                 .
