@@ -311,6 +311,7 @@ function install_lua_modules() {
   install_resty_module openresty    lua-resty-lock                      lib                . master $download
   install_resty_module pintsized    lua-resty-http                      lib                . master $download
   install_resty_module openresty    lua-resty-core                      lib                . master $download
+  install_resty_module openresty    lua-resty-lrucache                  lib                . master $download
 
   cd ../..
 

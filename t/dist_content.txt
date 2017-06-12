@@ -103,6 +103,9 @@ nginx-1.11.6/lib/resty/core/worker.lua
 nginx-1.11.6/lib/resty/http_headers.lua
 nginx-1.11.6/lib/resty/http.lua
 nginx-1.11.6/lib/resty/lock.lua
+nginx-1.11.6/lib/resty/lrucache/
+nginx-1.11.6/lib/resty/lrucache.lua
+nginx-1.11.6/lib/resty/lrucache/pureffi.lua
 nginx-1.11.6/lib/resty/upstream/
 nginx-1.11.6/lib/resty/upstream/dynamic/
 nginx-1.11.6/lib/resty/upstream/dynamic/healthcheck/
@@ -120,7 +123,6 @@ nginx-1.11.6/lua/initd/startup/99-healthcheck.lua
 nginx-1.11.6/lua/job.lua
 nginx-1.11.6/lua/lastlog.lua
 nginx-1.11.6/lua/pointcuts/
-nginx-1.11.6/lua/pointcuts/access/
 nginx-1.11.6/lua/pointcuts/access_by.lua
 nginx-1.11.6/lua/pointcuts/init/
 nginx-1.11.6/lua/pointcuts/init_by.lua

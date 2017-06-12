@@ -1,26 +1,29 @@
 local _M = {
-  _VERSION= "1.3.0"
+  _VERSION= "1.8.2"
 }
 
 local shdict = require "shdict"
+local lrucache = require "resty.lrucache"
 
 local function get_local(dict, key, fun)
   local cache = dict.__local_cache
   local now = ngx.now()
 
-  local item = cache[key]
+  local item = cache:get(key)
   if item and item.expired > now then
     return item.val, item.flags
   end
 
-  cache[key] = nil
+  if item then
+    cache:delete(key)
+  end
 
   item = {}
   item.val, item.flags = fun(dict, key)
 
   if item.val then
     item.expired = now + dict.__ttl
-    cache[key] = item
+    cache:set(key, item, dict.__ttl)
   end
 
   return item.val, item.flags
@@ -36,7 +39,7 @@ function shdict2_class:object_get(key)
   return get_local(self, key, self.dict_object_get)
 end
 
-function _M.new(name, ttl)
+function _M.new(name, ttl, count)
   local dict = shdict.new(name)
 
   if not ttl or ttl == 0 then
@@ -50,7 +53,12 @@ function _M.new(name, ttl)
     mt[n] = f
   end
 
-  dict.__local_cache = {}
+  local err
+  dict.__local_cache, err = lrucache.new(count or 10000)
+  if not dict.__local_cache then
+    error(err)
+  end
+
   dict.__ttl = ttl
 
   mt.dict_get        = dict.get
