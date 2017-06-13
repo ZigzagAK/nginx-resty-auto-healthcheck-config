@@ -1,5 +1,5 @@
 local _M = {
-  _VERSION = "1.2.0"
+  _VERSION = "1.8.2"
 }
 
 local cjson = require "cjson"
@@ -149,11 +149,17 @@ function shdict_class:flush_all()
   end
 end
 
-function shdict_class:flush_expired()
+function shdict_class:flush_expired(max_count)
+  local part, n = (max_count or 0) / self.__caches.count, 0
   for i=1,self.__caches.count
   do
-    self.__caches.data[i]:flush_expired()
+    if part ~= 0 and i == self.__caches.count then
+      part = max_count - n
+    end
+    local expired = self.__caches.data[i]:flush_expired(part) or 0
+    n = n + expired
   end
+  return n
 end
 
 local function get_keys(dict, max_count)
