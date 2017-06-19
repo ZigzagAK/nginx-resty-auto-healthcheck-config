@@ -16,7 +16,7 @@ function _M.config()
   -- Turn on healthchecks for all peers
   -- otherwise depends on server healthcheck parameters
   -- if parameters are missing - no healthchecks
-  CONFIG:safe_set("healthcheck.all", false)
+  CONFIG:add("healthcheck.all", false)
 end
 
 return _M
