@@ -301,6 +301,10 @@ function install_resty_module() {
   fi
 }
 
+function make_dir() {
+  mkdir $INSTALL_PREFIX/nginx-$VERSION$SUFFIX/$1
+}
+
 function install_lua_modules() {
   if [ $download -eq 1 ]; then
     rm -rf download/lua_modules/* 2>/dev/null
@@ -331,6 +335,8 @@ function install_lua_modules() {
   install_file lua/pointcuts/init                   lua/pointcuts
   install_file lua/pointcuts/log/90-stat.lua        lua/pointcuts/log
   install_file conf                                 .
+
+  make_dir                                          lua/pointcuts/access
 }
 
 install_lua_modules

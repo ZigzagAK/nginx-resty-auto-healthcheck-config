@@ -352,7 +352,7 @@ function _M.spawn_collector()
 
   STAT:object_set(buffer_key, buffer)
 
-  job.new("Stat collector worker #=" .. id, do_collect, collect_time_min):run()
+  job.new("Stat collector worker #" .. id, do_collect, collect_time_min):run()
 end
 
 function _M.purge()

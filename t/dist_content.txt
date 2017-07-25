@@ -123,6 +123,7 @@ nginx-1.11.6/lua/initd/startup/99-healthcheck.lua
 nginx-1.11.6/lua/job.lua
 nginx-1.11.6/lua/lastlog.lua
 nginx-1.11.6/lua/pointcuts/
+nginx-1.11.6/lua/pointcuts/access/
 nginx-1.11.6/lua/pointcuts/access_by.lua
 nginx-1.11.6/lua/pointcuts/init/
 nginx-1.11.6/lua/pointcuts/init_by.lua

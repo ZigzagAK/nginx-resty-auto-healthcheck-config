@@ -1,5 +1,5 @@
 local _M = {
-  _VERSION = "1.2.0"
+  _VERSION = "1.8.3"
 }
 
 local system = require "system"
@@ -50,8 +50,11 @@ local function initd(typ)
   ngx.log(ngx.INFO, "Startup ", typ, " modules end")
 end
 
-function _M.make(typ)
+function _M.sysconfig(typ)
   init_sysconfig(typ)
+end
+
+function _M.make(typ)
   initd(typ)
 end
 

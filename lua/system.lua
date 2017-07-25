@@ -62,7 +62,7 @@ local function scandir(dirname)
 
    local dir = C.opendir(dirname)
    if dir == nil then
-     error("directory not found: "..dirname)
+     return {}
    end
 
    local entries = {}
