@@ -1,5 +1,5 @@
 local _M = {
-  _VERSION = "1.7.0"
+  _VERSION = "1.8.3"
 }
 
 local HEALTHCHECK = ngx.shared.healthcheck
@@ -10,7 +10,7 @@ local function set_peer(upstream, peer, fun)
     ngx.say("upstream and peer arguments required")
     ngx.exit(ngx.status)
   end
-  fun(HEALTHCHECK, upstream, peer)
+  fun(HEALTHCHECK, upstream, ngx.unescape_uri(peer))
 end
 
 local function set_ip(upstream, selected_ip, fun)
