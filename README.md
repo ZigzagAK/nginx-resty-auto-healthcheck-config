@@ -16,7 +16,7 @@ This module has several dependencies:
 * [ngx_devel_kit](https://github.com/simpl/ngx_devel_kit)
 * [ngx_dynamic_upstream](https://github.com/ZigzagAK/ngx_dynamic_upstream)
 * [ngx_dynamic_upstream_lua](https://github.com/ZigzagAK/ngx_dynamic_upstream_lua)
-* [stream-lua-nginx-module](https://github.com/ZigzagAK/stream-lua-nginx-module)
+* [stream-lua-nginx-module](https://github.com/openresty/stream-lua-nginx-module)
 * [lua-cjson](https://github.com/openresty/lua-cjson)
 * [lua-resty-lock](https://github.com/openresty/lua-resty-lock)
 * [lua-resty-core](https://github.com/openresty/lua-resty-core)
@@ -30,7 +30,7 @@ All dependencies are downloaded automaticaly.
 Pre requirenments (for example centos/redhat)
 
 ```
-sudo yum gcc-c++.x86_64 zlib-devel openssl-devel
+sudo yum install gcc-c++.x86_64 zlib-devel openssl-devel
 ```
 
 Build
