@@ -2,7 +2,6 @@ local _M = {
   _VERSION = "1.8.1"
 }
 
-local cjson  = require "cjson"
 local shdict = require "shdict"
 local job    = require "job"
 
@@ -70,7 +69,7 @@ local function purge()
   local j, count = CONFIG:get("collector:j") - 1800, 0
   for i=j,0,-1
   do
-    STAT:fun(i, function(value, flags)
+    STAT:fun(i, function(value, _)
       if not value then
         i = 0
       end
@@ -93,7 +92,7 @@ local function do_collect()
 
   local j = CONFIG:incr("collector:j", 1, 0)
 
-  for i=1,2
+  for _=1,2
   do
     local ok, err = STAT:object_set(j, { start_time = start_time,
                                          end_time   = end_time,
@@ -144,7 +143,6 @@ end
 
 local function get_statistic_impl(now, period)
   local t = { reqs = {}, ups = {} }
-  local current_rps = 0
 
   for j = CONFIG:get("collector:j") or 0, 0, -1
   do
@@ -216,9 +214,9 @@ local function get_statistic_impl(now, period)
     sum_latency = 0
     sum_rps = 0
     count = 0
-    for peer, data in pairs(peers)
+    for _, data in pairs(peers)
     do
-      for status, stat in pairs(data)
+      for _, stat in pairs(data)
       do
         stat.latency = (stat.latency or 0) / stat.recs
         count = count + stat.count
@@ -235,7 +233,7 @@ local function get_statistic_impl(now, period)
   end
 
   -- sort by latency desc
-  for status, reqs in pairs(http_x)
+  for _, reqs in pairs(http_x)
   do
     table.sort(reqs, function(l, r) return l.stat.latency > r.stat.latency end)
   end
@@ -320,7 +318,8 @@ end
 local function add_stat(t, start_time, latency)
   latency = tonumber(latency) or 0
   if next(t) then
-    t.first, t.last, t.count, t.latency = math.min(t.first, start_time), math.max(t.last, start_time), t.count + 1, t.latency + latency
+    t.first, t.last, t.count, t.latency =
+      math.min(t.first, start_time), math.max(t.last, start_time), t.count + 1, t.latency + latency
   else
     t.first, t.last, t.count, t.latency = start_time, start_time, 1, latency
   end

@@ -3,13 +3,10 @@ local _M = {
 }
 
 local upstream = require "ngx.dynamic_upstream"
-local cjson    = require "cjson"
 local lastlog  = require "lastlog"
-local shdict  = require "shdict"
 
 local tinsert = table.insert
 
-local STAT   = shdict.new("stat")
 local CONFIG = ngx.shared.config
 
 local preprocess_uri = CONFIG:get("http.stat.preprocess_uri")
@@ -41,8 +38,8 @@ local function split(s)
 end
 
 local function accum_upstream_stat(start_request_time)
-  local ok, u, err = upstream.current_upstream()
-  if not u then
+  local ok, u = upstream.current_upstream()
+  if not ok or not u then
     u = "proxypass"
   end
 
@@ -51,11 +48,12 @@ local function accum_upstream_stat(start_request_time)
     return
   end
 
-  local addrs, codes, times = split(upstream_addr), split(ngx.var.upstream_status), split(ngx.var.upstream_response_time) or 0
+  local addrs, codes, times =
+    split(upstream_addr), split(ngx.var.upstream_status), split(ngx.var.upstream_response_time) or 0
 
   for i=1,#addrs
   do
-    local upstream_addr = addrs[i] 
+    local upstream_addr = addrs[i]
     if upstream_addr == u then
       -- error query
       upstream_addr = "ERROR"

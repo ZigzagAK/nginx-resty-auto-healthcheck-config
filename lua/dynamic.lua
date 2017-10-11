@@ -34,7 +34,7 @@ local function set_ip(upstream, selected_ip, fun)
     for i=1,#peers
     do
       local peer = peers[i]
-      local ip, port = peer.name:match("(.+):(%d+)")
+      local ip = peer.name:match("(.+):%d+")
       if not selected_ip or selected_ip == ip then
         fun(HEALTHCHECK, u, peer.name)
         ngx.say(u .. " " .. peer.name)
@@ -43,7 +43,7 @@ local function set_ip(upstream, selected_ip, fun)
   end
 end
 
-local function set_upstream(upstream, upstream_name, upstream_fun, fun)
+local function set_upstream(upstream_name, upstream_fun, fun)
   if not upstream_name then
     ngx.status = ngx.HTTP_BAD_REQUEST
     ngx.say("upstream argument required")
@@ -63,11 +63,11 @@ local function set_upstream(upstream, upstream_name, upstream_fun, fun)
 end
 
 local function set_upstream_primary(upstream, name, fun)
-  set_upstream(upstream, name, upstream.get_primary_peers, fun)
+  set_upstream(name, upstream.get_primary_peers, fun)
 end
 
 local function set_upstream_backup(upstream, name, fun)
-  set_upstream(upstream, name, upstream.get_backup_peers, fun)
+  set_upstream(name, upstream.get_backup_peers, fun)
 end
 
 local http = require "resty.upstream.dynamic.healthcheck.http"

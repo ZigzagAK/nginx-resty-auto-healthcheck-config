@@ -26,14 +26,14 @@ local function startup_healthcheck(premature, mod, opts)
   opts.healthcheck.fall = CONFIG:get("healthcheck.fall") or 2
   opts.healthcheck.rise = CONFIG:get("healthcheck.rise") or 2
   opts.healthcheck.timeout = CONFIG:get("healthcheck.timeout") or 1000
-  
+
   opts.check_all = CONFIG:get("healthcheck.all")
   if opts.check_all == nil then
     opts.check_all = true
   end
 
   opts.concurrency = 100
-  
+
   local hc = mod.new(opts)
   if hc then
     local ok, err = hc:start()
@@ -64,7 +64,7 @@ function _M.startup()
 
   ngx.log(ngx.INFO, "Setup healthcheck job worker #" .. id)
 
-  start_job(0, startup_healthcheck, http_hc, { typ = "http", 
+  start_job(0, startup_healthcheck, http_hc, { typ = "http",
                                                healthcheck = {
                                                  command = {
                                                    uri = CONFIG:get("healthcheck.uri") or "/",

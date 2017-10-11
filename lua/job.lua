@@ -41,7 +41,7 @@ main = function(premature, self, ...)
 
   local mtx = lock:new("jobs", { timeout = 0.1, exptime = 600 })
 
-  local remains, err = mtx:lock(self.key .. ":mtx")
+  local remains = mtx:lock(self.key .. ":mtx")
   if not remains then
     if self:running() then
       run_job(0.1, self, ...)
