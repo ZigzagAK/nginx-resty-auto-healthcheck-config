@@ -32,7 +32,7 @@ local function make_cache(cache, prefix)
   cache.count = #cache.data
 
   if cache.count == 0 then
-    error("shared memory [", prefix, "] is not defined")
+    error("shared memory [" .. prefix .. "] is not defined")
   end
 end
 
