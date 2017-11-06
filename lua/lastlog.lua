@@ -20,22 +20,31 @@ local buffer = {
   reqs = {}, ups = {}
 }
 
-local tinsert, tconcat = table.insert, table.concat
+local tinsert, tconcat, tsort = table.insert, table.concat, table.sort
+local pairs, ipairs, next, select = pairs, ipairs, next, select
+local min, max = math.min, math.max
+local type = type
+local tonumber = tonumber
+local update_time = ngx.update_time
+local now = ngx.now
+
+local ngx_log = ngx.log
+local WARN, ERR = ngx.WARN, ngx.ERR
 
 local function pull_statistic()
   if not next(buffer.reqs) then
     return
   end
 
-  local start_time, end_time = ngx.now(), 0
+  local start_time, end_time = now(), 0
 
   -- request statistic
   for _, uri_data in pairs(buffer.reqs or {})
   do
     for status, stat in pairs(uri_data)
     do
-      start_time = math.min(stat.first, start_time)
-      end_time = math.max(stat.last, end_time)
+      start_time = min(stat.first, start_time)
+      end_time = max(stat.last, end_time)
       uri_data[status] = tconcat( { stat.first, stat.last, stat.latency / stat.count, stat.count }, "|")
     end
   end
@@ -79,7 +88,7 @@ local function purge()
       count = count + 1
     end
   end
-  ngx.log(ngx.WARN, "stat collector: purge count=", count)
+  ngx_log(WARN, "stat collector: purge count=", count)
 end
 
 local function do_collect()
@@ -102,7 +111,7 @@ local function do_collect()
       break
     end
 
-    ngx.log(ngx.ERR, "stat collector: increase [lua_shared_dict stat] or decrease [http.stat.collect_time_max]: ", err)
+    ngx_log(ERR, "stat collector: increase [lua_shared_dict stat] or decrease [http.stat.collect_time_max]: ", err)
 
     purge()
   end
@@ -111,31 +120,34 @@ end
 local function merge(l, r)
   for k, v in pairs(r or {})
   do
+    local lk = l[k]
     if type(v) == "table" then
-      if not l[k] then
-        l[k] = {}
+      if not lk then
+        lk = {}
+        l[k] = lk
       end
-      merge(l[k], v)
+      merge(lk, v)
     else
-      if not l[k] then
-        l[k] = {
+      if not lk then
+        lk = { 
           latency = 0,
           count = 0,
           recs = 0,
-          first = ngx.now(),
+          first = now(),
           last = 0,
           current_rps = 0
         }
+        l[k] = lk
       end
       local first, last, latency, count = v:match("(.+)|(.+)|(.+)|(.+)")
-      l[k].first = math.min(l[k].first, first)
-      l[k].last = math.max(l[k].last, last)
-      l[k].latency = l[k].latency + tonumber(latency)
-      l[k].count = l[k].count + tonumber(count)
-      l[k].recs = l[k].recs + 1
+      lk.first = min(lk.first, first)
+      lk.last = max(lk.last, last)
+      lk.latency = lk.latency + tonumber(latency)
+      lk.count = lk.count + tonumber(count)
+      lk.recs = lk.recs + 1
       local p = tonumber(last) - tonumber(first)
-      if p > 0 and tonumber(last) >= ngx.now() - collect_time_min then
-        l[k].current_rps = l[k].current_rps + tonumber(count) / p
+      if p > 0 and tonumber(last) >= now() - collect_time_min then
+        lk.current_rps = lk.current_rps + tonumber(count) / p
       end
     end
   end
@@ -235,7 +247,7 @@ local function get_statistic_impl(now, period)
   -- sort by latency desc
   for _, reqs in pairs(http_x)
   do
-    table.sort(reqs, function(l, r) return l.stat.latency > r.stat.latency end)
+    tsort(reqs, function(l, r) return l.stat.latency > r.stat.latency end)
   end
 
   return t.reqs, t.ups, http_x, now, now + period
@@ -244,22 +256,20 @@ end
 -- public api
 
 function _M.get_statistic(period, backward)
-  ngx.update_time()
-  return get_statistic_impl(ngx.now() - (backward or 0) - (period or 60), period or 60)
+  update_time()
+  return get_statistic_impl(now() - (backward or 0) - (period or 60), period or 60)
 end
 
 function _M.get_statistic_from(start_time, period)
-  return get_statistic_impl(start_time, period or (ngx.now() - start_time))
+  return get_statistic_impl(start_time, period or (now() - start_time))
 end
 
 function _M.get_statistic_table(period, portion, backward)
   local t = {}
-  local now
 
-  ngx.update_time()
-  now = ngx.now()
+  update_time()
 
-  for time = now - (backward or 0) - (period or 60), now - (backward or 0), portion or 60
+  for time = now() - (backward or 0) - (period or 60), now() - (backward or 0), portion or 60
   do
     local reqs, ups, http_x, _, _ = get_statistic_impl(time, portion or 60)
     tinsert(t, { requests_statistic = reqs,
@@ -273,7 +283,7 @@ end
 function _M.get_statistic_table_from(start_time, period, portion)
   local t = {}
 
-  for time = start_time, start_time + (period or ngx.now() - start_time), portion or 60
+  for time = start_time, start_time + (period or now() - start_time), portion or 60
   do
     local reqs, ups, http_x, _, _ = get_statistic_impl(time, portion or 60)
     tinsert(t, { requests_statistic = reqs,
@@ -299,11 +309,10 @@ local function gett(t, ...)
   return t
 end
 
-local check_point = ngx.now()
+local check_point = now()
 
 local function try_check_point()
-  local now = ngx.now()
-  if check_point > now then
+  if check_point > now() then
     return
   end
 
@@ -312,14 +321,14 @@ local function try_check_point()
   STAT_BUFFER:delete(req_queue)
   STAT_BUFFER:delete(ups_queue)
 
-  check_point = now + 1
+  check_point = now() + 1
 end
 
 local function add_stat(t, start_time, latency)
   latency = tonumber(latency) or 0
   if next(t) then
     t.first, t.last, t.count, t.latency =
-      math.min(t.first, start_time), math.max(t.last, start_time), t.count + 1, t.latency + latency
+      min(t.first, start_time), max(t.last, start_time), t.count + 1, t.latency + latency
   else
     t.first, t.last, t.count, t.latency = start_time, start_time, 1, latency
   end
