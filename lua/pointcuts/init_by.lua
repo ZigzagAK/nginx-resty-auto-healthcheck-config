@@ -1,35 +1,34 @@
 local _M = {
-  _VERSION = "1.2.0"
+  _VERSION = "1.8.5"
 }
 
-local pointcuts = {}
-local system = require "system"
+local load_modules = lib.load_modules
+local process_modules = lib.process_modules
+
+local module_type = lib.module_type()
+
+local ngx_log = ngx.log
+local INFO = ngx.INFO
+
+local modules = {}
 
 function _M.make()
-  local files = system.getfiles("lua/pointcuts/init", ".+%.lua$")
-  for _, file in ipairs(files)
-  do
-    local name = file:match("(.+)%.lua$")
-    local ok, r = pcall(require, "pointcuts.init." .. name)
-    if not ok  then
-      ngx.log(ngx.WARN, "Loading init pointcut ", name, ": ", r)
-      goto continue
-    end
-    table.insert(pointcuts, { name = name, m = r })
-    ngx.log(ngx.INFO, "Loaded init pointcut ", name, " ...")
-::continue::
-  end
-  table.sort(pointcuts, function(l, r) return l.name < r.name end)
-end
+  ngx_log(INFO, "[", module_type ,"] loading init pointcuts")
 
-function _M.process()
-  for _, pointcut in ipairs(pointcuts)
-  do
-    local ok, err = pcall(pointcut.m.process)
-    if not ok then
-      ngx.log(ngx.ERR, "Init pointcut ", pointcut.name, ": ", err)
+  modules = load_modules("lua/pointcuts/init", {
+    getfun = function(mod)
+      return mod.process
+    end,
+    logfun = function(level, name, ...)
+      ngx_log(level, "[", module_type ,"] loading init pointcut ", name, " ", ...)
     end
-  end
+  })
+
+  process_modules(modules, function(level, name, ...)
+    ngx_log(level, "[", module_type ,"] process init pointcut ", name, " ", ...)
+  end, true)
+
+  ngx_log(INFO, "[", module_type ,"] loading init pointcuts finish")
 end
 
 return _M

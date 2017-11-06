@@ -1,61 +1,59 @@
 local _M = {
-  _VERSION = "1.8.3"
+  _VERSION = "1.8.5"
 }
 
-local system = require "system"
+local load_modules = lib.load_modules
+local process_modules = lib.process_modules
 
-local function init_sysconfig(typ)
-  ngx.log(ngx.INFO, "Configure ", typ, " modules begin")
-  local files = system.getfiles("conf/conf.d/sysconfig", ".+%.lua$")
-  for _, file in pairs(files)
-  do
-    local name = file:match("(.+)%.lua$")
-    local ok, r = pcall(require, "sysconfig." .. name)
-    if r and (r._MODULE_TYPE or "http") ~= typ then
-      package.loaded[name] = nil
-      goto continue
+local module_type = lib.module_type()
+
+local ngx_log = ngx.log
+local INFO = ngx.INFO
+
+local function init_sysconfig()
+  ngx_log(INFO, "[", module_type ,"] configuring modules")
+
+  local modules = load_modules("conf/conf.d/sysconfig", {
+    getfun = function(mod)
+      return mod.config
+    end,
+    logfun = function(level, name, ...)
+      ngx_log(level, "[", module_type ,"] loading ", name, " ", ...)
     end
-    ngx.log(ngx.INFO, "Configuring ", name, " ...")
-    if ok then
-      ok, r = pcall(r.config)
-    end
-    if not ok then
-      ngx.log(ngx.ERR, "Error configuring ", name, ": ", r)
-    end
-::continue::
-  end
-  ngx.log(ngx.INFO, "Configure ", typ, " modules end")
+  })
+
+  process_modules(modules, function(level, name, ...)
+    ngx_log(level, "[", module_type ,"]", " configuring ", name, " ", ...)
+  end, true)
+
+  ngx_log(INFO, "[", module_type ,"]", " configuring modules finish")
 end
 
-local function initd(typ)
-  ngx.log(ngx.INFO, "Startup ", typ, " modules begin")
-  local files = system.getfiles("lua/initd/startup", ".+%.lua$")
-  for _, file in pairs(files)
-  do
-    local name = file:match("(.+)%.lua$")
-    local ok, r = pcall(require, "initd.startup." .. name)
-    if r and (r._MODULE_TYPE or "http") ~= typ then
-      package.loaded[name] = nil
-      goto continue
+local function initd()
+  ngx_log(INFO, "[", module_type ,"]", " startup modules")
+
+  local modules = load_modules("lua/initd/startup", {
+    getfun = function(mod)
+      return mod.startup
+    end,
+    logfun = function(level, name, ...)
+      ngx_log(level, "[", module_type ,"] loading ", name, " ", ...)
     end
-    ngx.log(ngx.INFO, "Startup ", name, " ...")
-    if ok then
-      ok, r = pcall(r.startup)
-    end
-    if not ok then
-      ngx.log(ngx.ERR, "Error starting ", name, ": ", r)
-    end
-::continue::
-  end
-  ngx.log(ngx.INFO, "Startup ", typ, " modules end")
+  })
+
+  process_modules(modules, function(level, name, ...)
+    ngx_log(level, "[", module_type ,"] startup ", name, " ", ...)
+  end, true)
+
+  ngx_log(INFO, "[", module_type ,"] startup modules finish")
 end
 
-function _M.sysconfig(typ)
-  init_sysconfig(typ)
+function _M.sysconfig()
+  init_sysconfig()
 end
 
-function _M.make(typ)
-  initd(typ)
+function _M.make()
+  initd()
 end
 
 return _M

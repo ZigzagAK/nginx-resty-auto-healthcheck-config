@@ -1,35 +1,34 @@
 local _M = {
-  _VERSION = "1.2.0"
+  _VERSION = "1.8.5"
 }
 
-local pointcuts = {}
-local system = require "system"
+local load_modules = lib.load_modules
+local process_modules = lib.process_modules
+
+local ngx_log = ngx.log
+local INFO = ngx.INFO
+
+local modules = {}
 
 function _M.make()
-  local files = system.getfiles("lua/pointcuts/access", ".+%.lua$")
-  for _, file in ipairs(files)
-  do
-    local name = file:match("(.+)%.lua$")
-    local ok, r = pcall(require, "pointcuts.access." .. name)
-    if not ok  then
-      ngx.log(ngx.WARN, "Loading access pointcut ", name, ": ", r)
-      goto continue
+  ngx_log(INFO, "[http] loading access pointcuts")
+
+  modules = load_modules("lua/pointcuts/access", {
+    getfun = function(mod)
+      return mod.process
+    end,
+    logfun = function(level, name, ...)
+      ngx_log(level, "[http] loading access pointcut ", name, " ", ...)
     end
-    table.insert(pointcuts, { name = name, m = r })
-    ngx.log(ngx.INFO, "Loaded access pointcut ", name, " ...")
-::continue::
-  end
-  table.sort(pointcuts, function(l, r) return l.name < r.name end)
+  })
+
+  ngx_log(INFO, "[http] loading access pointcuts finish")
 end
 
 function _M.process()
-  for _, pointcut in ipairs(pointcuts)
-  do
-    local ok, err = pcall(pointcut.m.process)
-    if not ok then
-      ngx.log(ngx.ERR, "Access pointcut ", pointcut.name, ": ", err)
-    end
-  end
+  process_modules(modules, function(level, name, ...)
+    ngx_log(level, "[http] access pointcut ", name, " ", ...)
+  end)
 end
 
 return _M

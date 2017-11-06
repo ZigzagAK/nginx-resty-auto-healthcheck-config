@@ -1,10 +1,10 @@
 local _M = {
-  _VERSION = "1.0.0"
+  _VERSION = "1.8.5"
 }
 
-local CONFIG = ngx.shared.config
-
 function _M.config()
+  local CONFIG = ngx.shared.config
+
   CONFIG:set("healthcheck.uri", "/")
   CONFIG:set("healthcheck.interval", 10)
   CONFIG:set("healthcheck.timeout", 1000)

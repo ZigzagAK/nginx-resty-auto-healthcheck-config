@@ -80,7 +80,7 @@ end
 
 function _M.getfiles(directory, mask)
   local t = {}
-  for _, file in pairs(scandir(directory))
+  for _, file in ipairs(scandir(directory))
   do
     if file:match(mask) then
       table.insert(t, file)
@@ -88,6 +88,26 @@ function _M.getfiles(directory, mask)
   end
   table.sort(t, function(l, r) return l < r end)
   return t
+end
+
+function _M.getmodules(directory, mod_type)
+  local files = _M.getfiles(directory, "%.lua$")
+  local mod_prefix = directory:gsub("/", "."):match("^lua%.(.+)$") or
+                     directory:gsub("/", "."):match("^conf%.conf%.d%.(.+)$")
+  local modules = {}
+  for i, file in ipairs(files)
+  do
+    local name = file:match("(.+)%.lua$")
+    local f, err = io.open(directory .. "/" .. file)
+    assert(f, err)
+    local content = f:read("*a")
+    mod = content:match([[_MODULE_TYPE%s*=%s*["']?([^"']+)["']?]]) or "http"
+    if mod:lower() == mod_type:lower() then
+      table.insert(modules, { name, mod_prefix .. "." .. name })
+    end
+    f:close()
+  end
+  return modules
 end
 
 return _M
