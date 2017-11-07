@@ -1,9 +1,9 @@
 local _M = {
-  _VERSION = "1.8.1"
+  _VERSION = "1.8.5"
 }
 
 local shdict = require "shdict"
-local job    = require "job"
+local job = require "job"
 
 local STAT = shdict.new("stat")
 local STAT_BUFFER = shdict.new("stat_buffer")
@@ -13,7 +13,9 @@ local CONFIG = ngx.shared.config
 local collect_time_min = CONFIG:get("http.stat.collect_time_min") or 1
 local collect_time_max = CONFIG:get("http.stat.collect_time_max") or 7200
 
-local id = ngx.worker.id()
+local worker_id = ngx.worker.id
+
+local id = worker_id()
 local req_queue, ups_queue, buffer_key = "r:" .. id, "u:" .. id, "b:" .. id
 
 local buffer = {
@@ -31,6 +33,8 @@ local now = ngx.now
 local ngx_log = ngx.log
 local WARN, ERR = ngx.WARN, ngx.ERR
 
+local foreach, foreach_v = lib.foreach, lib.foreach_v
+
 local function pull_statistic()
   if not next(buffer.reqs) then
     return
@@ -39,27 +43,22 @@ local function pull_statistic()
   local start_time, end_time = now(), 0
 
   -- request statistic
-  for _, uri_data in pairs(buffer.reqs or {})
-  do
-    for status, stat in pairs(uri_data)
-    do
+  foreach_v(buffer.reqs or {}, function(uri_data)
+    foreach(uri_data, function(status, stat)
       start_time = min(stat.first, start_time)
       end_time = max(stat.last, end_time)
       uri_data[status] = tconcat( { stat.first, stat.last, stat.latency / stat.count, stat.count }, "|")
-    end
-  end
+    end)
+  end)
 
   -- upstream statistic
-  for _, upstream_data in pairs(buffer.ups or {})
-  do
-    for _, addr_data in pairs(upstream_data)
-    do
-      for status, stat in pairs(addr_data)
-      do
+  foreach_v(buffer.ups or {}, function(upstream_data)
+    foreach_v(upstream_data, function(addr_data)
+      foreach(addr_data, function(status, stat)
         addr_data[status] = tconcat( { stat.first, stat.last, stat.latency / stat.count, stat.count }, "|")
-      end
-    end
-  end
+      end)
+    end)
+  end)
 
   local r = buffer
 
@@ -118,8 +117,7 @@ local function do_collect()
 end
 
 local function merge(l, r)
-  for k, v in pairs(r or {})
-  do
+  foreach(r or {}, function(k, v)
     local lk = l[k]
     if type(v) == "table" then
       if not lk then
@@ -129,7 +127,7 @@ local function merge(l, r)
       merge(lk, v)
     else
       if not lk then
-        lk = { 
+        lk = {
           latency = 0,
           count = 0,
           recs = 0,
@@ -150,7 +148,7 @@ local function merge(l, r)
         lk.current_rps = lk.current_rps + tonumber(count) / p
       end
     end
-  end
+  end)
 end
 
 local function get_statistic_impl(now, period)
@@ -196,11 +194,9 @@ local function get_statistic_impl(now, period)
   local sum_rps = 0
   local count = 0
 
-  for uri, data in pairs(t.reqs.requests)
-  do
+  foreach(t.reqs.requests, function(uri, data)
     local req_count = 0
-    for status, stat in pairs(data)
-    do
+    foreach(data, function(status, stat)
       stat.latency = (stat.latency or 0) / stat.recs
       if not http_x[status] then
         http_x[status] = {}
@@ -210,9 +206,9 @@ local function get_statistic_impl(now, period)
       req_count = req_count + stat.count
       sum_rps = sum_rps + stat.current_rps
       sum_latency = sum_latency + stat.latency * stat.count
-    end
+    end)
     data.count = req_count
-  end
+  end)
 
   if count ~= 0 then
     t.reqs.stat.average_latency = sum_latency / count
@@ -221,34 +217,30 @@ local function get_statistic_impl(now, period)
   t.reqs.stat.current_rps = sum_rps
 
   -- upstream statistic
-  for u, peers in pairs(t.ups.upstreams)
-  do
+  foreach(t.ups.upstreams, function(u, peers)
     sum_latency = 0
     sum_rps = 0
     count = 0
-    for _, data in pairs(peers)
-    do
-      for _, stat in pairs(data)
-      do
+    foreach_v(peers, function(data)
+      foreach_v(data, function(stat)
         stat.latency = (stat.latency or 0) / stat.recs
         count = count + stat.count
         sum_latency = sum_latency + stat.latency * stat.count
         sum_rps = sum_rps + stat.current_rps
-      end
-    end
+      end)
+    end)
     if count ~= 0 then
       t.ups.stat[u] = {}
       t.ups.stat[u].average_latency = sum_latency / count
     end
     t.ups.stat[u].average_rps = count / period
     t.ups.stat[u].current_rps = sum_rps
-  end
+  end)
 
   -- sort by latency desc
-  for _, reqs in pairs(http_x)
-  do
+  foreach_v(http_x, function(reqs)
     tsort(reqs, function(l, r) return l.stat.latency > r.stat.latency end)
-  end
+  end)
 
   return t.reqs, t.ups, http_x, now, now + period
 end
@@ -339,6 +331,9 @@ function _M.spawn_collector()
   buffer = STAT:object_get(buffer_key) or {
     reqs = {}, ups = {}
   }
+
+  id = worker_id()
+  req_queue, ups_queue, buffer_key = "r:" .. id, "u:" .. id, "b:" .. id
 
   repeat
     local req = STAT_BUFFER:lpop(req_queue)

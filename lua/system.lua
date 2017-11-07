@@ -1,5 +1,5 @@
 local _M = {
-  _VERSION = "1.0.0",
+  _VERSION = "1.8.5",
 
   signal = {
     SIGHUP  = 1,
@@ -55,6 +55,11 @@ ffi.cdef[[
   struct dirent *readdir(struct DIR *dirp);
 ]]
 
+local ipairs = ipairs
+local assert, error = assert, error
+local type = type
+local tinsert, tsort = table.insert, table.sort
+
 local function scandir(dirname)
    if type(dirname) ~= 'string' then
      error("dirname not a string:", dirname)
@@ -69,7 +74,7 @@ local function scandir(dirname)
    local dirent = C.readdir(dir)
 
    while dirent ~= nil do
-      table.insert(entries, ffi.string(dirent.d_name))
+      tinsert(entries, ffi.string(dirent.d_name))
       dirent = C.readdir(dir)
    end
 
@@ -83,10 +88,10 @@ function _M.getfiles(directory, mask)
   for _, file in ipairs(scandir(directory))
   do
     if file:match(mask) then
-      table.insert(t, file)
+      tinsert(t, file)
     end
   end
-  table.sort(t, function(l, r) return l < r end)
+  tsort(t, function(l, r) return l < r end)
   return t
 end
 
@@ -101,9 +106,9 @@ function _M.getmodules(directory, mod_type)
     local f, err = io.open(directory .. "/" .. file)
     assert(f, err)
     local content = f:read("*a")
-    mod = content:match([[_MODULE_TYPE%s*=%s*["']?([^"']+)["']?]]) or "http"
+    local mod = content:match([[_MODULE_TYPE%s*=%s*["']?([^"']+)["']?]]) or "http"
     if mod:lower() == mod_type:lower() then
-      table.insert(modules, { name, mod_prefix .. "." .. name })
+      tinsert(modules, { name, mod_prefix .. "." .. name })
     end
     f:close()
   end
