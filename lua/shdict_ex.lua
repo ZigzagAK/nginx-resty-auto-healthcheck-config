@@ -1,13 +1,15 @@
 local _M = {
-  _VERSION= "1.8.2"
+  _VERSION= "1.8.5"
 }
 
 local shdict = require "shdict"
 local lrucache = require "resty.lrucache"
 
+local ngx_now = ngx.now
+
 local function get_local(dict, key, fun)
   local cache = dict.__local_cache
-  local now = ngx.now()
+  local now = ngx_now()
 
   local item = cache:get(key)
   if item and item.expired > now then

@@ -1,14 +1,20 @@
 local _M = {
-  _VERSION = "1.8.2"
+  _VERSION = "1.8.5"
 }
 
 local cjson = require "cjson"
 
+local json_decode = cjson.decode
+local json_encode = cjson.encode
+
+local ipairs = ipairs
+
+local function foreachi(t, f)
+  for _,v in ipairs(t) do f(v) end
+end
+
 local function decode(value)
-  if value then
-    return cjson.decode(value)
-  end
-  return nil
+  return value and json_decode(value) or nil
 end
 
 local function make_cache(cache, prefix)
@@ -16,7 +22,7 @@ local function make_cache(cache, prefix)
   if shm then
     cache.count = 1
     cache.data[1] = shm
-    return
+    return 1
   end
 
   for i=1,64
@@ -31,122 +37,145 @@ local function make_cache(cache, prefix)
 
   cache.count = #cache.data
 
-  if cache.count == 0 then
-    error("shared memory [" .. prefix .. "] is not defined")
-  end
+  assert(cache.count > 0, "shared memory [" .. prefix .. "] is not defined")
+
+  return cache.count
 end
 
 local shdict_class = {}
 
 function shdict_class:get(key)
-  return self.__caches.get(key):get(key)
+  return self.shard(key):get(key)
 end
 
 function shdict_class:object_get(key)
-  local value, flags = self.__caches.get(key):get(key)
+  local value, flags = self.shard(key):get(key)
   return decode(value), flags
 end
 
 function shdict_class:get_stale(key)
-  return self.__caches.get(key):get_stale(key)
+  return self.shard(key):get_stale(key)
 end
 
 function shdict_class:object_get_stale(key)
-  local value, flags, stale = self.__caches.get(key):get_stale(key)
+  local value, flags, stale = self.shard(key):get_stale(key)
   return decode(value), flags, stale
 end
 
 function shdict_class:set(key, value, exptime, flags)
-  return self.__caches.get(key):set(key, value, exptime or 0, flags or 0)
+  return self.shard(key):set(key, value, exptime or 0, flags or 0)
 end
 
 function shdict_class:object_set(key, value, exptime, flags)
-  return self.__caches.get(key):set(key, cjson.encode(value), exptime or 0, flags or 0)
+  return self.shard(key):set(key, json_encode(value), exptime or 0, flags or 0)
 end
 
 function shdict_class:safe_set(key, value, exptime, flags)
-  return self.__caches.get(key):safe_set(key, value, exptime or 0, flags or 0)
+  return self.shard(key):safe_set(key, value, exptime or 0, flags or 0)
 end
 
 function shdict_class:object_safe_set(key, value, exptime, flags)
-  return self.__caches.get(key):safe_set(key, cjson.encode(value), exptime or 0, flags or 0)
+  return self.shard(key):safe_set(key, json_encode(value), exptime or 0, flags or 0)
 end
 
 function shdict_class:add(key, value, exptime, flags)
-  return self.__caches.get(key):add(key, value, exptime or 0, flags or 0)
+  return self.shard(key):add(key, value, exptime or 0, flags or 0)
 end
 
 function shdict_class:object_add(key, value, exptime, flags)
-  return self.__caches.get(key):add(key, cjson.encode(value), exptime or 0, flags or 0)
+  return self.shard(key):add(key, json_encode(value), exptime or 0, flags or 0)
 end
 
 function shdict_class:safe_add(key, value, exptime, flags)
-  return self.__caches.get(key):safe_add(key, value, exptime or 0, flags or 0)
+  return self.shard(key):safe_add(key, value, exptime or 0, flags or 0)
 end
 
 function shdict_class:object_safe_add(key, value, exptime, flags)
-  return self.__caches.get(key):safe_add(key, cjson.encode(value), exptime or 0, flags or 0)
+  return self.shard(key):safe_add(key, json_encode(value), exptime or 0, flags or 0)
 end
 
 function shdict_class:replace(key, value, exptime, flags)
-  return self.__caches.get(key):replace(key, value, exptime or 0, flags or 0)
+  return self.shard(key):replace(key, value, exptime or 0, flags or 0)
 end
 
 function shdict_class:object_replace(key, value, exptime, flags)
-  return self.__caches.get(key):replace(key, cjson.encode(value), exptime or 0, flags or 0)
+  return self.shard(key):replace(key, json_encode(value), exptime or 0, flags or 0)
 end
 
 function shdict_class:delete(key)
-  return self.__caches.get(key):delete(key)
+  return self.shard(key):delete(key)
 end
 
 function shdict_class:incr(key, value, init)
-  return self.__caches.get(key):incr(key, value, init or 0)
+  return self.shard(key):incr(key, value, init or 0)
 end
 
 function shdict_class:lpush(key, value)
-  return self.__caches.get(key):lpush(key, value)
+  return self.shard(key):lpush(key, value)
 end
 
 function shdict_class:object_lpush(key, value)
-  return self.__caches.get(key):lpush(key, cjson.encode(value))
+  return self.shard(key):lpush(key, json_encode(value))
 end
 
 function shdict_class:rpush(key, value)
-  return self.__caches.get(key):rpush(key, value)
+  return self.shard(key):rpush(key, value)
 end
 
 function shdict_class:object_rpush(key, value)
-  return self.__caches.get(key):rpush(key, cjson.encode(value))
+  return self.shard(key):rpush(key, json_encode(value))
 end
 
 function shdict_class:lpop(key)
-  return self.__caches.get(key):lpop(key)
+  return self.shard(key):lpop(key)
 end
 
 function shdict_class:object_lpop(key)
-  local value, err = self.__caches.get(key):lpop(key)
+  local value, err = self.shard(key):lpop(key)
   return decode(value), err
 end
 
 function shdict_class:rpop(key)
-  return self.__caches.get(key):rpop(key)
+  return self.shard(key):rpop(key)
 end
 
 function shdict_class:object_rpop(key)
-  local value, err = self.__caches.get(key):rpop(key)
+  local value, err = self.shard(key):rpop(key)
   return decode(value), err
 end
 
 function shdict_class:llen(key)
-  return self.__caches.get(key):llen(key)
+  return self.shard(key):llen(key)
+end
+
+function shdict_class:ttl(key)
+  return self.shard(key):ttl(key)
+end
+
+function shdict_class:expire(key, exptime)
+  return self.shard(key):expire(key, exptime)
+end
+
+function shdict_class:capacity()
+  local total = 0
+  foreachi(self.__caches.data, function(shard)
+    total = total + shard:capacity()
+  end)
+  return total
+end
+
+function shdict_class:free_space()
+  local total = 0
+  foreachi(self.__caches.data, function(shard)
+    total = total + shard:free_space()
+  end)
+  return total
 end
 
 function shdict_class:flush_all()
-  for i=1,self.__caches.count
-  do
-    self.__caches.data[i]:flush_all()
-  end
+  foreachi(self.__caches.data, function(shard)
+    shard:flush_all()
+  end)
 end
 
 function shdict_class:flush_expired(max_count)
@@ -220,16 +249,13 @@ function shdict_class:get_objects(max_count)
 end
 
 function shdict_class:fun(key, fun, exptime)
-  return self.__caches.get(key):fun(key, fun, exptime or 0)
+  return self.shard(key):fun(key, fun, exptime or 0)
 end
 
 function shdict_class:object_fun(key, fun, exptime)
-  local value, flags = self.__caches.get(key):fun(key, function(value, flags)
+  local value, flags = self.shard(key):fun(key, function(value, flags)
     local object, new_flags = fun(decode(value), flags)
-    if object then
-      return cjson.encode(object), new_flags
-    end
-    return nil, new_flags
+    return object and json_encode(object) or nil, new_flags
   end, exptime or 0)
   return decode(value), flags
 end
@@ -242,24 +268,14 @@ function _M.new(name)
     }
   }
 
-  local caches = dict.__caches
+  local data = dict.__caches.data
+  local count = make_cache(dict.__caches, name)
+  local single = count == 1 and data[1] or nil
+  local crc32_short = ngx.crc32_short
 
-  caches.get = function(key)
-    if caches.count == 1 then
-      return caches.data[1]
-    end
-
-    if caches.last_key == key then
-      return caches.last_shm
-    end
-
-    caches.last_key = key
-    caches.last_shm = caches.data[1 + ngx.crc32_short(key) % caches.count]
-
-    return caches.last_shm
+  dict.shard = function(key)
+    return single and single or data[1 + crc32_short(key) % count]
   end
-
-  make_cache(caches, name)
 
   return setmetatable(dict, { __index = shdict_class } )
 end
