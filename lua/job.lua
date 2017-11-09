@@ -26,7 +26,7 @@ local main
 
 local function run_job(delay, self, ...)
   if worker_exiting() then
-    return self:finish()
+    return self:finish(...)
   end
 
   local ok, err = timer_at(delay, main, self, ...)
@@ -38,12 +38,8 @@ local function run_job(delay, self, ...)
 end
 
 main = function(premature, self, ...)
-  if premature then
-    return self:finish()
-  end
-
-  if not self:running() then
-    return
+  if premature or not self:running() then
+    return self:finish(...)
   end
 
   for _,other in ipairs(self.wait_others)
@@ -147,9 +143,9 @@ function job:suspended()
   return JOBS:get(self.key .. ":suspended") == 1
 end
 
-function job:finish()
+function job:finish(...)
   if self.finish_fn then
-    self.finish_fn()
+    self.finish_fn(...)
   end
   JOBS:delete(self.key .. ":running")
 end
