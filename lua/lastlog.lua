@@ -74,20 +74,28 @@ local function pull_statistic()
 end
 
 local function purge()
-  local j, count = CONFIG:get("collector:j") - 1800, 0
-  for i=j,0,-1
+  local oldest, last = CONFIG:get("$stat:oldest") or 0, CONFIG:get("$stat:last") or 0
+  local count = 0
+
+  ngx_log(WARN, "lastlog: please increase [lua_shared_dict stat] or decrease [http.stat.collect_time_max]: no memory")
+
+  for j=oldest,last
   do
-    STAT:fun(i, function(value, _)
-      if not value then
-        i = 0
-      end
+    STAT:fun(j, function(val)
+      count = count + (val and 1 or 0)
       return nil, 0
     end)
-    if i ~= 0 then
-      count = count + 1
+    oldest = oldest + 1
+    if count == 100 then
+      break
     end
   end
-  ngx_log(WARN, "stat collector: purge count=", count)
+
+  CONFIG:set("$stat:oldest", oldest)
+
+  ngx_log(WARN, "lastlog: purge count=", count)
+
+  STAT:flush_expired()
 end
 
 local function do_collect()
@@ -96,24 +104,17 @@ local function do_collect()
     return
   end
 
-  STAT:flush_expired()
+  local j = CONFIG:incr("$stat:last", 1, 0)
 
-  local j = CONFIG:incr("collector:j", 1, 0)
-
-  for _=1,2
-  do
-    local ok, err = STAT:object_set(j, { start_time = start_time,
+  while not STAT:object_add(j, { start_time = start_time,
                                          end_time   = end_time,
                                          stat       = stat },
                                     collect_time_max)
-    if ok then
-      break
-    end
-
-    ngx_log(ERR, "stat collector: increase [lua_shared_dict stat] or decrease [http.stat.collect_time_max]: ", err)
-
+  do
     purge()
   end
+
+  STAT:flush_expired()
 end
 
 local function merge(l, r)
@@ -153,13 +154,20 @@ end
 
 local function get_statistic_impl(now, period)
   local t = { reqs = {}, ups = {} }
+  local miss = 0
 
-  for j = CONFIG:get("collector:j") or 0, 0, -1
+  for j = CONFIG:get("$stat:last") or 0, 0, -1
   do
     local stat_j = STAT:object_get(j)
     if not stat_j then
-      break
+      miss = miss + 1
+      if miss == 100 then
+        break
+      end
+      goto continue
     end
+
+    miss = 0
 
     if not stat_j.stat then
       goto continue
@@ -308,7 +316,10 @@ local function try_check_point()
     return
   end
 
-  STAT:object_set(buffer_key, buffer)
+  while not STAT:object_set(buffer_key, buffer)
+  do
+    purge()
+  end
 
   STAT_BUFFER:delete(req_queue)
   STAT_BUFFER:delete(ups_queue)
@@ -355,21 +366,32 @@ function _M.spawn_collector()
 
   STAT:object_set(buffer_key, buffer)
 
-  job.new("Stat collector worker #" .. id, do_collect, collect_time_min):run()
+  job.new("lastlog worker #" .. id, do_collect, collect_time_min):run()
 end
 
 function _M.purge()
   purge()
 end
 
+local function rpush(key, ...)
+  local len
+  repeat
+    len = STAT_BUFFER:rpush(key, ...)
+    if not len then
+      -- no memory
+      STAT_BUFFER:lpop(key)
+    end
+  until len
+end
+
 function _M.add_uri_stat(uri, status, start_time, request_time)
-  STAT_BUFFER:rpush(req_queue, tconcat( { uri, status, start_time, request_time }, "|" ))
+  rpush(req_queue, tconcat( { uri, status, start_time, request_time }, "|" ))
   add_stat(gett(buffer.reqs, uri, status),
            start_time, request_time)
 end
 
 function _M.add_ups_stat(upstream, status, addr, start_time, response_time)
-  STAT_BUFFER:rpush(ups_queue, tconcat( { upstream, status, addr, start_time, response_time }, "|" ))
+  rpush(ups_queue, tconcat( { upstream, status, addr, start_time, response_time }, "|" ))
   add_stat(gett(buffer.ups, upstream, addr, status),
            start_time, response_time)
 end
