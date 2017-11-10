@@ -1,5 +1,5 @@
 local _M = {
-  _VERSION = "1.1.0"
+  _VERSION = "1.8.5"
 }
 
 local lock  = require "resty.lock"
@@ -16,6 +16,7 @@ local INFO, ERR, WARN = ngx.INFO, ngx.ERR, ngx.WARN
 local pcall, setmetatable = pcall, setmetatable
 local worker_pid = ngx.worker.pid
 local tinsert = table.insert
+local assert = assert
 
 local function now()
   update_time()
@@ -34,7 +35,10 @@ local function run_job(delay, self, ...)
     ngx_log(ERR, self.key .. " failed to add timer: ", err)
     self:stop()
     self:clean()
+    return false
   end
+
+  return true
 end
 
 main = function(premature, self, ...)
@@ -105,7 +109,7 @@ function job:run(...)
     ngx_log(INFO, "job ", self.key, " start")
     JOBS:set(self.key .. ":running", 1)
     self:set_next_time()
-    return run_job(0, self, ...)
+    return assert(run_job(0, self, ...))
   end
   ngx_log(INFO, "job ", self.key, " already completed")
   return nil, "completed"
@@ -126,9 +130,9 @@ function job:resume()
 end
 
 function job:stop()
-  ngx_log(INFO, "job ", self.key, " stopped")
   JOBS:delete(self.key .. ":running")
   JOBS:set(self.key .. ":completed", 1)
+  ngx_log(INFO, "job ", self.key, " stopped")
 end
 
 function job:completed()
@@ -147,7 +151,7 @@ function job:finish(...)
   if self.finish_fn then
     self.finish_fn(...)
   end
-  JOBS:delete(self.key .. ":running")
+  return true
 end
 
 function job:wait_for(other)
