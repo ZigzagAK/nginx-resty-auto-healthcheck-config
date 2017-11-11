@@ -17,6 +17,9 @@ local pcall, setmetatable = pcall, setmetatable
 local worker_pid = ngx.worker.pid
 local tinsert = table.insert
 local assert = assert
+local random = math.random
+
+local workers = ngx.worker.count()
 
 local function now()
   update_time()
@@ -24,6 +27,14 @@ local function now()
 end
 
 local main
+
+local function set_next_time(self)
+  JOBS:incr(self.key .. ":next", self.interval, now())
+end
+
+local function get_next_time(self)
+  return JOBS:get(self.key .. ":next")
+end
 
 local function run_job(delay, self, ...)
   if worker_exiting() then
@@ -49,8 +60,7 @@ main = function(premature, self, ...)
   for _,other in ipairs(self.wait_others)
   do
     if not other:completed() then
-      run_job(0.1, self, ...)
-      return
+      return run_job(0.1, self, ...)
     end
   end
 
@@ -70,7 +80,7 @@ main = function(premature, self, ...)
     return
   end
 
-  if now() >= self:get_next_time() then
+  if now() >= get_next_time(self) then
     local counter = JOBS:incr(self.key .. ":counter", 1, -1)
     local ok, err = pcall(self.callback, { counter = counter,
                                            hup = self.pid == nil }, ...)
@@ -80,12 +90,12 @@ main = function(premature, self, ...)
     if not ok then
       ngx_log(WARN, self.key, ": ", err)
     end
-    self:set_next_time()
+    set_next_time(self)
   end
 
   mtx:unlock()
 
-  run_job(self:get_next_time() - now(), self, ...)
+  run_job(get_next_time(self) - now() + random(0, workers - 1) / 10, self, ...)
 end
 
 local job = {}
@@ -108,7 +118,7 @@ function job:run(...)
   if not self:completed() then
     ngx_log(INFO, "job ", self.key, " start")
     JOBS:set(self.key .. ":running", 1)
-    self:set_next_time()
+    set_next_time(self)
     return assert(run_job(0, self, ...))
   end
   ngx_log(INFO, "job ", self.key, " already completed")
@@ -158,13 +168,6 @@ function job:wait_for(other)
   tinsert(self.wait_others, other)
 end
 
-function job:set_next_time()
-  JOBS:set(self.key .. ":next", now() + self.interval)
-end
-
-function job:get_next_time()
-  return JOBS:get(self.key .. ":next")
-end
 
 function job:clean()
   if not self:running() then
