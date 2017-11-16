@@ -1,5 +1,5 @@
 local _M = {
-  _VERSION = "1.8.0"
+  _VERSION = "1.8.5"
 }
 
 local upstream = require "ngx.dynamic_upstream"
@@ -105,10 +105,13 @@ local function accum_uri_stat()
 end
 
 function _M.process()
+  if ngx.ctx.skip_stats then
+    return
+  end
   update_time()
   local ok, start_request_time, err = xpcall(accum_uri_stat, function(err)
     ngx_log(ERR, traceback())
-    return err    
+    return err
   end)
   if ok then
     ok, err = xpcall(accum_upstream_stat, function(err)

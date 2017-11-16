@@ -140,3 +140,64 @@ __DATA__
     GET /test
 --- response_body
 0
+
+=== TEST 5: ttl
+--- http_config
+    lua_package_path 'lua/?.lua;;';
+    lua_shared_dict test 10m;
+--- config
+    location /test {
+        content_by_lua_block {
+          local dict = require "shdict"
+          local test = dict.new("test")
+          test:set("x", 1, 10)
+          ngx.say(test:ttl("x"))
+          test:expire("x", 0)
+          ngx.say(test:ttl("x"))
+          test:expire("x", 10.5)
+          ngx.say(test:ttl("x"))
+          test:expire("x", 0)
+          ngx.say(test:ttl("x"))
+        }
+    }
+--- request
+    GET /test
+--- response_body
+10
+0
+10.5
+0
+
+=== TEST 6: capacity
+--- http_config
+    lua_package_path 'lua/?.lua;;';
+    lua_shared_dict test 10m;
+--- config
+    location /test {
+        content_by_lua_block {
+          local dict = require "shdict"
+          local test = dict.new("test")
+          ngx.say(test:capacity())
+        }
+    }
+--- request
+    GET /test
+--- response_body_like
+^\d+$
+
+=== TEST 6: free_space
+--- http_config
+    lua_package_path 'lua/?.lua;;';
+    lua_shared_dict test 10m;
+--- config
+    location /test {
+        content_by_lua_block {
+          local dict = require "shdict"
+          local test = dict.new("test")
+          ngx.say(test:free_space())
+        }
+    }
+--- request
+    GET /test
+--- response_body_like
+^\d+$

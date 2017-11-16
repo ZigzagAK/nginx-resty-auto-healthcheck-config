@@ -6,7 +6,16 @@ local shdict = require "shdict"
 local job = require "job"
 
 local STAT = shdict.new("stat")
-local STAT_BUFFER = shdict.new("stat_buffer")
+
+local ok, STAT_BUFFER = pcall(shdict.new, "stat_buffer")
+if not ok then
+  -- disable stat buffer
+  STAT_BUFFER = setmetatable({}, { __index = {
+    delete = function() end,
+    lpop = function() end,
+    rpush = function() return 0 end
+  }})
+end
 
 local CONFIG = ngx.shared.config
 
