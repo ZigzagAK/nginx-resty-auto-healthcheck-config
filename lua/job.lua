@@ -80,6 +80,11 @@ main = function(premature, self, ...)
     return
   end
 
+  if not self:running() then
+    mtx:unlock()
+    return self:finish(...)
+  end
+
   if now() >= get_next_time(self) then
     local counter = JOBS:incr(self.key .. ":counter", 1, -1)
     local ok, err = pcall(self.callback, { counter = counter,
