@@ -274,7 +274,7 @@ function _M.new(name)
   local crc32_short = ngx.crc32_short
 
   dict.shard = function(key)
-    return single and single or data[1 + crc32_short(key) % count]
+    return single and single or data[1 + crc32_short(tostring(key)) % count]
   end
 
   return setmetatable(dict, { __index = shdict_class } )
