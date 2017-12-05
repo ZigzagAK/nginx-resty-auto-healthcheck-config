@@ -1,5 +1,5 @@
 local _M = {
-  _VERSION = "1.8.5"
+  _VERSION = "1.8.6"
 }
 
 local lock  = require "resty.lock"
@@ -28,8 +28,9 @@ end
 
 local main
 
-local function set_next_time(self)
-  JOBS:incr(self.key .. ":next", self.interval, now())
+local function set_next_time(self, interval)
+  interval = interval or self.interval
+  JOBS:set(self.key .. ":next", now() + interval or self.interval)
 end
 
 local function get_next_time(self)
@@ -123,7 +124,7 @@ function job:run(...)
   if not self:completed() then
     ngx_log(INFO, "job ", self.key, " start")
     JOBS:set(self.key .. ":running", 1)
-    set_next_time(self)
+    set_next_time(self, 1)
     return assert(run_job(0, self, ...))
   end
   ngx_log(INFO, "job ", self.key, " already completed")
