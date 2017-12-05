@@ -185,7 +185,7 @@ __DATA__
 --- response_body_like
 ^\d+$
 
-=== TEST 6: free_space
+=== TEST 7: free_space
 --- http_config
     lua_package_path 'lua/?.lua;;';
     lua_shared_dict test 10m;
