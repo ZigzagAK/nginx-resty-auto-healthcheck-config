@@ -62,7 +62,7 @@ function lib.find_if_i(t, f)
 end
 
 function lib.load_modules(path, opts)
-  local modules = system.getmodules(path, MOD_TYPE)
+  local modules = system.getmodules(path)
   local result = {}
   lib.foreachi(modules, function(m)
     local short_name, name = unpack(m)
@@ -97,6 +97,12 @@ end
 function lib.module_type()
   assert(MOD_TYPE, "MOD_TYPE is nil")
   return MOD_TYPE
+end
+
+function lib.path2lua_module(path)
+  return path:gsub("^lua/", "")
+             :gsub("^conf/conf.d/", "")
+             :gsub("/", ".")
 end
 
 function _M.init(mod_type)

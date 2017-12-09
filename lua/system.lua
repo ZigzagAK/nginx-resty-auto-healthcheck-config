@@ -55,63 +55,54 @@ ffi.cdef[[
   struct dirent *readdir(struct DIR *dirp);
 ]]
 
-local ipairs = ipairs
-local assert, error = assert, error
-local type = type
+local assert = assert
 local tinsert, tsort = table.insert, table.sort
 
 local function scandir(dirname)
-   if type(dirname) ~= 'string' then
-     error("dirname not a string:", dirname)
-   end
+  local dir = C.opendir(dirname)
+  if not dir then
+    return {}
+  end
 
-   local dir = C.opendir(dirname)
-   if dir == nil then
-     return {}
-   end
+  local entries = {}
+  local dirent = C.readdir(dir)
 
-   local entries = {}
-   local dirent = C.readdir(dir)
+  while dirent ~= nil do
+    tinsert(entries, ffi.string(dirent.d_name))
+    dirent = C.readdir(dir)
+  end
 
-   while dirent ~= nil do
-      tinsert(entries, ffi.string(dirent.d_name))
-      dirent = C.readdir(dir)
-   end
+  C.closedir(dir);
 
-   C.closedir(dir);
-
-   return entries
+  return entries
 end
 
 function _M.getfiles(directory, mask)
-  local t = {}
-  for _, file in ipairs(scandir(directory))
-  do
+  local entries = {}
+  lib.foreachi(scandir(directory), function(file)
     if file:match(mask) then
-      tinsert(t, file)
+      tinsert(entries, file)
     end
-  end
-  tsort(t, function(l, r) return l < r end)
-  return t
+  end)
+  tsort(entries, function(l, r) return l < r end)
+  return entries
 end
 
-function _M.getmodules(directory, mod_type)
-  local files = _M.getfiles(directory, "%.lua$")
-  local mod_prefix = directory:gsub("/", "."):match("^lua%.(.+)$") or
-                     directory:gsub("/", "."):match("^conf%.conf%.d%.(.+)$")
+function _M.getmodules(directory, type)
+  local entries = _M.getfiles(directory, "%.lua$")
+  local mod_prefix = lib.path2lua_module(directory)
   local modules = {}
-  for i, file in ipairs(files)
-  do
-    local name = file:match("(.+)%.lua$")
-    local f, err = io.open(directory .. "/" .. file)
-    assert(f, err)
+  type = type or lib.module_type()
+  lib.foreachi(entries, function(file_name)
+    local f = assert(io.open(directory .. "/" .. file_name))
     local content = f:read("*a")
-    local mod = content:match([[_MODULE_TYPE%s*=%s*["']?([^"']+)["']?]]) or "http"
-    if mod:lower() == mod_type:lower() then
+    f:close()
+    local mod_type = content:match([[_MODULE_TYPE%s*=%s*["']?([^"']+)["']?]]) or "http"
+    if mod_type:lower() == type:lower() then
+      local name = file_name:match("(.+)%.lua$")
       tinsert(modules, { name, mod_prefix .. "." .. name })
     end
-    f:close()
-  end
+  end)
   return modules
 end
 
