@@ -1,5 +1,5 @@
 local _M = {
-  _VERSION = "1.8.5"
+  _VERSION = "1.8.6"
 }
 
 local cjson = require "cjson"
@@ -8,10 +8,7 @@ local json_decode = cjson.decode
 local json_encode = cjson.encode
 
 local ipairs = ipairs
-
-local function foreachi(t, f)
-  for _,v in ipairs(t) do f(v) end
-end
+local foreachi = lib.foreachi
 
 local function decode(value)
   return value and json_decode(value) or nil
@@ -42,120 +39,149 @@ local function make_cache(cache, prefix)
   return cache.count
 end
 
+--- @type ShDict
 local shdict_class = {}
 
+--- @param #ShDict self
 function shdict_class:get(key)
   return self.shard(key):get(key)
 end
 
+--- @param #ShDict self
 function shdict_class:object_get(key)
   local value, flags = self.shard(key):get(key)
   return decode(value), flags
 end
 
+--- @param #ShDict self
 function shdict_class:get_stale(key)
   return self.shard(key):get_stale(key)
 end
 
+--- @param #ShDict self
 function shdict_class:object_get_stale(key)
   local value, flags, stale = self.shard(key):get_stale(key)
   return decode(value), flags, stale
 end
 
+--- @param #ShDict self
 function shdict_class:set(key, value, exptime, flags)
   return self.shard(key):set(key, value, exptime or 0, flags or 0)
 end
 
+--- @param #ShDict self
 function shdict_class:object_set(key, value, exptime, flags)
   return self.shard(key):set(key, json_encode(value), exptime or 0, flags or 0)
 end
 
+--- @param #ShDict self
 function shdict_class:safe_set(key, value, exptime, flags)
   return self.shard(key):safe_set(key, value, exptime or 0, flags or 0)
 end
 
+--- @param #ShDict self
 function shdict_class:object_safe_set(key, value, exptime, flags)
   return self.shard(key):safe_set(key, json_encode(value), exptime or 0, flags or 0)
 end
 
+--- @param #ShDict self
 function shdict_class:add(key, value, exptime, flags)
   return self.shard(key):add(key, value, exptime or 0, flags or 0)
 end
 
+--- @param #ShDict self
 function shdict_class:object_add(key, value, exptime, flags)
   return self.shard(key):add(key, json_encode(value), exptime or 0, flags or 0)
 end
 
+--- @param #ShDict self
 function shdict_class:safe_add(key, value, exptime, flags)
   return self.shard(key):safe_add(key, value, exptime or 0, flags or 0)
 end
 
+--- @param #ShDict self
 function shdict_class:object_safe_add(key, value, exptime, flags)
   return self.shard(key):safe_add(key, json_encode(value), exptime or 0, flags or 0)
 end
 
+--- @param #ShDict self
 function shdict_class:replace(key, value, exptime, flags)
   return self.shard(key):replace(key, value, exptime or 0, flags or 0)
 end
 
+--- @param #ShDict self
 function shdict_class:object_replace(key, value, exptime, flags)
   return self.shard(key):replace(key, json_encode(value), exptime or 0, flags or 0)
 end
 
+--- @param #ShDict self
 function shdict_class:delete(key)
   return self.shard(key):delete(key)
 end
 
+--- @param #ShDict self
 function shdict_class:incr(key, value, init)
   return self.shard(key):incr(key, value, init or 0)
 end
 
+--- @param #ShDict self
 function shdict_class:lpush(key, value)
   return self.shard(key):lpush(key, value)
 end
 
+--- @param #ShDict self
 function shdict_class:object_lpush(key, value)
   return self.shard(key):lpush(key, json_encode(value))
 end
 
+--- @param #ShDict self
 function shdict_class:rpush(key, value)
   return self.shard(key):rpush(key, value)
 end
 
+--- @param #ShDict self
 function shdict_class:object_rpush(key, value)
   return self.shard(key):rpush(key, json_encode(value))
 end
 
+--- @param #ShDict self
 function shdict_class:lpop(key)
   return self.shard(key):lpop(key)
 end
 
+--- @param #ShDict self
 function shdict_class:object_lpop(key)
   local value, err = self.shard(key):lpop(key)
   return decode(value), err
 end
 
+--- @param #ShDict self
 function shdict_class:rpop(key)
   return self.shard(key):rpop(key)
 end
 
+--- @param #ShDict self
 function shdict_class:object_rpop(key)
   local value, err = self.shard(key):rpop(key)
   return decode(value), err
 end
 
+--- @param #ShDict self
 function shdict_class:llen(key)
   return self.shard(key):llen(key)
 end
 
+--- @param #ShDict self
 function shdict_class:ttl(key)
   return self.shard(key):ttl(key)
 end
 
+--- @param #ShDict self
 function shdict_class:expire(key, exptime)
   return self.shard(key):expire(key, exptime)
 end
 
+--- @param #ShDict self
 function shdict_class:capacity()
   local total = 0
   foreachi(self.__caches.data, function(shard)
@@ -164,6 +190,7 @@ function shdict_class:capacity()
   return total
 end
 
+--- @param #ShDict self
 function shdict_class:free_space()
   local total = 0
   foreachi(self.__caches.data, function(shard)
@@ -172,12 +199,14 @@ function shdict_class:free_space()
   return total
 end
 
+--- @param #ShDict self
 function shdict_class:flush_all()
   foreachi(self.__caches.data, function(shard)
     shard:flush_all()
   end)
 end
 
+--- @param #ShDict self
 function shdict_class:flush_expired(max_count)
   local part, n = (max_count or 0) / self.__caches.count, 0
   for i=1,self.__caches.count
@@ -205,6 +234,7 @@ local function get_keys(dict, max_count)
   return keys
 end
 
+--- @param #ShDict self
 function shdict_class:get_keys(max_count)
   local parts = get_keys(self, max_count or 0)
   local keys = {}
@@ -218,6 +248,7 @@ function shdict_class:get_keys(max_count)
   return keys
 end
 
+--- @param #ShDict self
 function shdict_class:get_values(max_count)
   local keys = get_keys(self, max_count or 0)
   local r = {}
@@ -233,6 +264,7 @@ function shdict_class:get_values(max_count)
   return r
 end
 
+--- @param #ShDict self
 function shdict_class:get_objects(max_count)
   local keys = get_keys(self, max_count or 0)
   local r = {}
@@ -248,10 +280,12 @@ function shdict_class:get_objects(max_count)
   return r
 end
 
+--- @param #ShDict self
 function shdict_class:fun(key, fun, exptime)
   return self.shard(key):fun(key, fun, exptime or 0)
 end
 
+--- @param #ShDict self
 function shdict_class:object_fun(key, fun, exptime)
   local value, flags = self.shard(key):fun(key, function(value, flags)
     local object, new_flags = fun(decode(value), flags)
@@ -260,6 +294,8 @@ function shdict_class:object_fun(key, fun, exptime)
   return decode(value), flags
 end
 
+--- @param #string name
+--  @return #ShDict
 function _M.new(name)
   local dict = {
     __caches = {

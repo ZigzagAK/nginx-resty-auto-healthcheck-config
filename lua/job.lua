@@ -3,8 +3,9 @@ local _M = {
 }
 
 local lock  = require "resty.lock"
+local shdict = require "shdict"
 
-local JOBS = ngx.shared.jobs
+local JOBS = shdict.new("jobs")
 
 local ipairs = ipairs
 local update_time = ngx.update_time
@@ -37,7 +38,8 @@ local function get_next_time(self)
   return JOBS:get(self.key .. ":next")
 end
 
-local function run_job(delay, self, ...)
+--- @param #Job self
+local function run_job(self, delay, ...)
   if worker_exiting() then
     return self:finish(...)
   end
@@ -61,7 +63,7 @@ main = function(premature, self, ...)
   for _,other in ipairs(self.wait_others)
   do
     if not other:completed() then
-      return run_job(0.1, self, ...)
+      return run_job(self, 0.1, ...)
     end
   end
 
@@ -70,13 +72,13 @@ main = function(premature, self, ...)
   local remains = mtx:lock(self.key .. ":mtx")
   if not remains then
     if self:running() then
-      run_job(0.1, self, ...)
+      run_job(self, 0.1, ...)
     end
     return
   end
 
   if self:suspended() then
-    run_job(0.1, self, ...)
+    run_job(self, 0.1, ...)
     mtx:unlock()
     return
   end
@@ -101,13 +103,15 @@ main = function(premature, self, ...)
 
   mtx:unlock()
 
-  run_job(get_next_time(self) - now() + random(0, workers - 1) / 10, self, ...)
+  run_job(self, get_next_time(self) - now() + random(0, workers - 1) / 10, ...)
 end
 
+--- @type Job
 local job = {}
 
 -- public api
 
+--- @return #Job
 function _M.new(name, callback, interval, finish)
   local j = {
     callback    = callback,
@@ -120,17 +124,19 @@ function _M.new(name, callback, interval, finish)
   return setmetatable(j, { __index = job })
 end
 
+--- @param #Job self
 function job:run(...)
   if not self:completed() then
     ngx_log(INFO, "job ", self.key, " start")
     JOBS:set(self.key .. ":running", 1)
     set_next_time(self, 1)
-    return assert(run_job(0, self, ...))
+    return assert(run_job(self, 0, ...))
   end
   ngx_log(INFO, "job ", self.key, " already completed")
   return nil, "completed"
 end
 
+--- @param #Job self
 function job:suspend()
   if not self:suspended() then
     ngx_log(INFO, "job ", self.key, " suspended")
@@ -138,6 +144,7 @@ function job:suspend()
   end
 end
 
+--- @param #Job self
 function job:resume()
   if self:suspended() then
     ngx_log(INFO, "job ", self.key, " resumed")
@@ -145,24 +152,29 @@ function job:resume()
   end
 end
 
+--- @param #Job self
 function job:stop()
   JOBS:delete(self.key .. ":running")
   JOBS:set(self.key .. ":completed", 1)
   ngx_log(INFO, "job ", self.key, " stopped")
 end
 
+--- @param #Job self
 function job:completed()
   return JOBS:get(self.key .. ":completed") == 1
 end
 
+--- @param #Job self
 function job:running()
   return JOBS:get(self.key .. ":running") == 1
 end
 
+--- @param #Job self
 function job:suspended()
   return JOBS:get(self.key .. ":suspended") == 1
 end
 
+--- @param #Job self
 function job:finish(...)
   if self.finish_fn then
     self.finish_fn(...)
@@ -170,11 +182,12 @@ function job:finish(...)
   return true
 end
 
+--- @param #Job self
 function job:wait_for(other)
   tinsert(self.wait_others, other)
 end
 
-
+--- @param #Job self
 function job:clean()
   if not self:running() then
     JOBS:delete(self.key .. ":running")

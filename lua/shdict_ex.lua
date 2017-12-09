@@ -1,5 +1,5 @@
 local _M = {
-  _VERSION= "1.8.5"
+  _VERSION= "1.8.6"
 }
 
 local shdict = require "shdict"
@@ -31,16 +31,24 @@ local function get_local(dict, key, fun)
   return item.val, item.flags
 end
 
+--- @type ShDict2
+--  @extends shdict#ShDict
 local shdict2_class = {}
 
+--- @param #ShDict2 self
 function shdict2_class:get(key)
   return get_local(self, key, self.dict_get)
 end
 
+--- @param #ShDict2 self
 function shdict2_class:object_get(key)
   return get_local(self, key, self.dict_object_get)
 end
 
+--- @param #string name
+--  @param #number ttl
+--  @param #number count
+--  @return #ShDict2
 function _M.new(name, ttl, count)
   local dict = shdict.new(name)
 
