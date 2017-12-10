@@ -20,17 +20,31 @@ local MOD_TYPE
 --- @field #table lib
 lib = lib or {}
 
+function lib.fake(...)
+  return ...
+end
+
 function lib.pcall(f, ...)
-  local ok, result, err = pcall(f, ...)
-  return ok and result or nil, ok and err or result
+  local ok, result = pcall(function(...)
+    return { f(...) }
+  end, ...)
+  if ok then
+    return unpack(result)
+  end
+  return nil, result
 end
 
 function lib.xpcall(f, ...)
-  local ok, result, err = xpcall(f, function(err)
+  local ok, result = xpcall(function(...)
+    return { f(...) }
+  end, function(err)
     ngx_log(ERR, err, "\n", traceback())
     return err
   end, ...)
-  return ok and result or nil, ok and err or result
+  if ok then
+    return unpack(result)
+  end
+  return nil, result
 end
 
 function lib.foreach_v(t, f)
