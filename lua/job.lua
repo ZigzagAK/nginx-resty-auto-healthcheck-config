@@ -13,7 +13,7 @@ local ngx_now = ngx.now
 local worker_exiting = ngx.worker.exiting
 local timer_at = ngx.timer.at
 local ngx_log = ngx.log
-local INFO, ERR, WARN = ngx.INFO, ngx.ERR, ngx.WARN
+local INFO, ERR, WARN, DEBUG = ngx.INFO, ngx.ERR, ngx.WARN, ngx.DEBUG
 local pcall, setmetatable = pcall, setmetatable
 local worker_pid = ngx.worker.pid
 local tinsert = table.insert
@@ -127,12 +127,14 @@ end
 --- @param #Job self
 function job:run(...)
   if not self:completed() then
-    ngx_log(INFO, "job ", self.key, " start")
-    JOBS:set(self.key .. ":running", 1)
+    if not self:running() then
+      ngx_log(INFO, "job ", self.key, " start")
+      JOBS:set(self.key .. ":running", 1)
+    end
     set_next_time(self, 1)
     return assert(run_job(self, 0, ...))
   end
-  ngx_log(INFO, "job ", self.key, " already completed")
+  ngx_log(DEBUG, "job ", self.key, " already completed")
   return nil, "completed"
 end
 
