@@ -56,7 +56,7 @@ function lib.foreach(t, f)
 end
 
 function lib.foreachi(t, f)
-  for _,v in ipairs(t) do f(v) end
+  for i=1,#t do f(t[i], i) end
 end
 
 function lib.find_if(t, f)
@@ -68,7 +68,9 @@ function lib.find_if(t, f)
 end
 
 function lib.find_if_i(t, f)
-  for i,v in ipairs(t) do
+  local v
+  for i=1,#t do
+    v = t[i]
     if f(v) then
       return { v, i }
     end

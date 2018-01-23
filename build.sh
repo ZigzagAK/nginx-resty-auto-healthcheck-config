@@ -88,6 +88,7 @@ function build_debug() {
               --with-cc-opt="-O0" \
               --add-module=../ngx_devel_kit \
               --add-module=../lua-nginx-module \
+              --add-module=../echo-nginx-module \
               --add-module=../stream-lua-nginx-module \
               --add-module=../ngx_dynamic_upstream \
               --add-module=../ngx_dynamic_upstream_lua > /dev/null 2>/dev/stderr
@@ -120,6 +121,7 @@ function build_release() {
               --with-http_auth_request_module \
               --add-module=../ngx_devel_kit \
               --add-module=../lua-nginx-module \
+              --add-module=../echo-nginx-module \
               --add-module=../stream-lua-nginx-module \
               --add-module=../ngx_dynamic_upstream \
               --add-module=../ngx_dynamic_upstream_lua > /dev/null 2>/dev/stderr
@@ -226,6 +228,7 @@ function download() {
   download_module ZigzagAK    lua-nginx-module                 mixed
   download_module openresty   lua-cjson                        master
   download_module ZigzagAK    lua_int64                        master
+  download_module openresty   echo-nginx-module                master
 
   cd ..
 }
