@@ -1,10 +1,9 @@
 local _M = {
-  _VERSION = "1.8.0"
+  _VERSION = "1.8.7"
 }
 
-local lastlog = require "lastlog"
-
 function _M.startup()
+  local lastlog = require "lastlog"
   lastlog.spawn_collector()
 end
 

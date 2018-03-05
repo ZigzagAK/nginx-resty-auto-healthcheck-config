@@ -53,21 +53,10 @@ function build_luajit() {
   cd ..
 }
 
-function build_cJSON() {
-  echo "Build cjson"
-  cd lua-cjson
-  PREFIX="$JIT_PREFIX/usr/local" make > /dev/null
-  r=$?
-  if [ $r -ne 0 ]; then
-    exit $r
-  fi
-  cd ..
-}
-
 function build_int64() {
-  echo "Build int64"
+  echo "Build int64" | tee -a $BUILD_LOG
   cd lua_int64
-  CFLAGS="-I$JIT_PREFIX/usr/local/include/luajit-2.1" make > /dev/null
+  LUA_INCLUDE_DIR="$JIT_PREFIX/usr/local/include/luajit-2.1" LDFLAGS="-L$JIT_PREFIX/usr/local/lib -lluajit-5.1" make > /dev/null
   r=$?
   if [ $r -ne 0 ]; then
     exit $r
@@ -75,6 +64,16 @@ function build_int64() {
   cd ..
 }
 
+function build_cJSON() {
+  echo "Build cjson" | tee -a $BUILD_LOG
+  cd lua-cjson
+  LUA_INCLUDE_DIR="$JIT_PREFIX/usr/local/include/luajit-2.1" WITH_INT64="${DIR}/build/lua_int64" make > /dev/null
+  r=$?
+  if [ $r -ne 0 ]; then
+    exit $r
+  fi
+  cd ..
+}
 
 function build_debug() {
   cd nginx-$VERSION$SUFFIX
@@ -251,14 +250,12 @@ function install_files() {
 function build() {
   cd build
 
-  patch -N -p0 < ../lua-cjson-Makefile.patch
-
   if [ $build_deps -eq 1 ] || [ ! -e deps/luajit ]; then
     build_luajit
   fi
 
-  build_cJSON
   build_int64
+  build_cJSON
 
   make clean > /dev/null 2>&1
   build_debug
@@ -269,6 +266,7 @@ function build() {
   install_file  "$JIT_PREFIX/usr/local/lib"           .
   install_file  lua-cjson/cjson.so                    lib/lua/5.1
   install_file  lua_int64/int64.so                    lib/lua/5.1
+  install_file  "lua_int64/liblua_int64.so"           lib
   install_file  "ngx_dynamic_upstream_lua/lib"        .
 
   cd ..
@@ -346,6 +344,7 @@ function install_lua_modules() {
   install_file lua/system.lua                       lua
   install_file lua/shdict.lua                       lua
   install_file lua/shdict_ex.lua                    lua
+  install_file lua/healthcheck.lua                  lua
   install_file lua/initd                            lua
   install_file lua/pointcuts/access_by.lua          lua/pointcuts
   install_file lua/pointcuts/init_by.lua            lua/pointcuts
