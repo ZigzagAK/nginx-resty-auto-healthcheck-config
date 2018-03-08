@@ -9,7 +9,6 @@ local healthchecks = {}
 local function init_healthcheck(mod, opts)
   assert(opts.type, "type required")
 
-  opts.shm = "healthcheck"
   opts.interval = CONFIG:get("healthcheck.interval") or 10
 
   if not opts.healthcheck then
@@ -27,7 +26,7 @@ local function init_healthcheck(mod, opts)
 
   opts.concurrency = 100
 
-  return assert(mod.new(opts))
+  return mod.create(opts)
 end
 
 function _M.init()
