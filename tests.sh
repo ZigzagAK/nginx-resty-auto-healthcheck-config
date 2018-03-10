@@ -21,6 +21,7 @@ do
   prove $t
   if [ $? -ne 0 ]; then
     ret=$?
+    exit $ret
   fi
 done
 

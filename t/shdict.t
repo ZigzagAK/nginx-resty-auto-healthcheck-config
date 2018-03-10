@@ -1,7 +1,7 @@
 use Test::Nginx::Socket;
 use Test::Nginx::Socket::Lua::Stream;
 
-repeat_each(1);
+repeat_each(2);
 
 plan tests => repeat_each() * 2 * blocks();
 
@@ -20,6 +20,7 @@ __DATA__
     lua_shared_dict test_3 1m;
     lua_shared_dict test_4 1m;
     init_by_lua_block {
+      require "lua.pointcuts.common"
       local dict = require "shdict"
       test = dict.new("test")
       sum = 0
@@ -53,6 +54,7 @@ __DATA__
     lua_shared_dict test_3 1m;
     lua_shared_dict test_4 1m;
     init_by_lua_block {
+      require "lua.pointcuts.common"
       local dict = require "shdict"
       test = dict.new("test")
       sum = 0
@@ -86,6 +88,7 @@ __DATA__
     lua_shared_dict test_3 1m;
     lua_shared_dict test_4 1m;
     init_by_lua_block {
+      require "lua.pointcuts.common"
       local dict = require "shdict"
       test = dict.new("test")
       sum = 0
@@ -116,6 +119,7 @@ __DATA__
     lua_package_path 'lua/?.lua;;';
     lua_shared_dict test 10m;
     init_by_lua_block {
+      require "lua.pointcuts.common"
       local dict = require "shdict"
       test = dict.new("test")
       sum = 0
@@ -145,6 +149,9 @@ __DATA__
 --- http_config
     lua_package_path 'lua/?.lua;;';
     lua_shared_dict test 10m;
+    init_by_lua_block {
+      require "lua.pointcuts.common"
+    }
 --- config
     location /test {
         content_by_lua_block {
@@ -172,6 +179,9 @@ __DATA__
 --- http_config
     lua_package_path 'lua/?.lua;;';
     lua_shared_dict test 10m;
+    init_by_lua_block {
+      require "lua.pointcuts.common"
+    }
 --- config
     location /test {
         content_by_lua_block {
@@ -189,6 +199,9 @@ __DATA__
 --- http_config
     lua_package_path 'lua/?.lua;;';
     lua_shared_dict test 10m;
+    init_by_lua_block {
+      require "lua.pointcuts.common"
+    }
 --- config
     location /test {
         content_by_lua_block {

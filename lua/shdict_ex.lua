@@ -1,11 +1,13 @@
 local _M = {
-  _VERSION= "1.8.6"
+  _VERSION= "1.9.0"
 }
 
 local shdict = require "shdict"
 local lrucache = require "resty.lrucache"
 
 local ngx_now = ngx.now
+
+local make_key = shdict.make_key
 
 local function get_local(dict, key, fun)
   local cache = dict.__local_cache
@@ -37,11 +39,13 @@ local shdict2_class = {}
 
 --- @param #ShDict2 self
 function shdict2_class:get(key)
+  make_key = make_key(key)
   return get_local(self, key, self.dict_get)
 end
 
 --- @param #ShDict2 self
 function shdict2_class:object_get(key)
+  make_key = make_key(key)
   return get_local(self, key, self.dict_object_get)
 end
 
@@ -64,11 +68,7 @@ function _M.new(name, ttl, count)
   end
 
   local err
-  dict.__local_cache, err = lrucache.new(count or 10000)
-  if not dict.__local_cache then
-    error(err)
-  end
-
+  dict.__local_cache, err = assert(lrucache.new(count or 10000))
   dict.__ttl = ttl
 
   mt.dict_get        = dict.get
