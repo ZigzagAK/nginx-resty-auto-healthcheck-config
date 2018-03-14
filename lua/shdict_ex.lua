@@ -39,13 +39,13 @@ local shdict2_class = {}
 
 --- @param #ShDict2 self
 function shdict2_class:get(key)
-  make_key = make_key(key)
+  key = make_key(key)
   return get_local(self, key, self.dict_get)
 end
 
 --- @param #ShDict2 self
 function shdict2_class:object_get(key)
-  make_key = make_key(key)
+  key = make_key(key)
   return get_local(self, key, self.dict_object_get)
 end
 

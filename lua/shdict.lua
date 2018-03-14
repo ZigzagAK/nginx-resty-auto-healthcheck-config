@@ -9,7 +9,7 @@ local json_encode = cjson.encode
 
 local foreach, foreachi = lib.foreach, lib.foreachi
 local tinsert, tsort, tconcat = table.insert, table.sort, table.concat
-local type, next = type, next
+local type, next, ngx_null = type, next, ngx.null
 
 local function decode(value)
   return value and json_decode(value) or nil
@@ -22,7 +22,7 @@ local function make_key(key)
 
   local tmp = {}
   foreach(key, function(k,v)
-    tinsert(tmp, k.."="..v)
+    tinsert(tmp, k.."="..(v ~= ngx_null and v or "null"))
   end)
 
   tsort(tmp)
@@ -35,7 +35,7 @@ local function parse_key(key)
     local key_object = {}
     for k,v in key:gmatch("([^=]+)=([^&]+)&?")
     do
-      key_object[k] = v
+      key_object[k] = v ~= "null" and v or ngx_null
     end
     return next(key_object) and key_object or key
   end
