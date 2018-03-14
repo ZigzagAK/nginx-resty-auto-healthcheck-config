@@ -214,3 +214,60 @@ __DATA__
     GET /test
 --- response_body_like
 ^\d+$
+
+
+=== TEST 8: zadd
+--- http_config
+    lua_package_path 'lua/?.lua;;';
+    lua_shared_dict test 10m;
+    init_by_lua_block {
+      require "lua.pointcuts.common"
+    }
+--- config
+    location /test {
+        content_by_lua_block {
+          local dict = require "shdict"
+          local test = dict.new("test")
+          test:zadd("foo", "bar", 1)
+          test:zadd("foo", "bar", 1)
+          test:zadd("foo", "rab", 2)
+          test:zadd("foo", "rab", 2)
+          test:zscan("foo", function(key, value)
+            ngx.say(key,"=",value)
+          end)
+        }
+    }
+--- request
+    GET /test
+--- response_body
+bar=1
+rab=2
+
+
+=== TEST 9: object_zadd
+--- http_config
+    lua_package_path 'lua/?.lua;;';
+    lua_shared_dict test 10m;
+    init_by_lua_block {
+      require "lua.pointcuts.common"
+    }
+--- config
+    location /test {
+        content_by_lua_block {
+          local dict = require "shdict"
+          local test = dict.new("test")
+          test:delete("foo")
+          test:object_zadd("foo", "bar", { val=1 })
+          test:object_zadd("foo", "bar", { val=2 })
+          test:object_zadd("foo", "rab", { val=3 })
+          test:object_zadd("foo", "rab", { val=4 })
+          test:object_zscan("foo", function(key, value)
+            ngx.say(key,"=",value.val)
+          end)
+        }
+    }
+--- request
+    GET /test
+--- response_body
+bar=1
+rab=3
