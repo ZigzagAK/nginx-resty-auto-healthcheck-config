@@ -243,6 +243,19 @@ function shdict_class:object_zset(key, zkey, value, exptime)
                               exptime)
 end
 
+function shdict_class:zadd(key, zkey, value, exptime)
+  key = make_key(key)
+  return self.shard(key):zadd(key, make_key(zkey), value, exptime)
+end
+
+--- @param #ShDict self
+function shdict_class:object_zadd(key, zkey, value, exptime)
+  key = make_key(key)
+  return self.shard(key):zadd(key, make_key(zkey),
+                              value and json_encode(value) or nil,
+                              exptime)
+end
+
 --- @param #ShDict self
 function shdict_class:zget(key, zkey)
   key = make_key(key)
