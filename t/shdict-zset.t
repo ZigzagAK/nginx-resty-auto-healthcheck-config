@@ -202,7 +202,7 @@ c3
 d4
 e5
 12345
-nil
+0
 --- no_error_log
 [error]
 
