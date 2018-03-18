@@ -35,7 +35,7 @@ local function set_next_time(self, interval)
 end
 
 local function get_next_time(self)
-  return JOBS:get(self.key .. ":next")
+  return JOBS:get(self.key .. ":next") or now()
 end
 
 --- @param #Job self
@@ -131,7 +131,6 @@ function job:run(...)
       ngx_log(INFO, "job ", self.key, " start")
       JOBS:set(self.key .. ":running", 1)
     end
-    set_next_time(self, 1)
     return assert(run_job(self, 0, ...))
   end
   ngx_log(DEBUG, "job ", self.key, " already completed")
