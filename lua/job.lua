@@ -1,5 +1,5 @@
 local _M = {
-  _VERSION = "1.8.6"
+  _VERSION = "1.9.0"
 }
 
 local lock  = require "resty.lock"
@@ -31,11 +31,16 @@ local main
 
 local function set_next_time(self, interval)
   interval = interval or self.interval
-  JOBS:set(self.key .. ":next", now() + interval or self.interval)
+  JOBS:set(self.key .. ":next", now() + interval)
 end
 
 local function get_next_time(self)
-  return JOBS:get(self.key .. ":next") or now()
+  local next_time = JOBS:get(self.key .. ":next")
+  if not next_time then
+    next_time = now()
+    JOBS:set(self.key .. ":next", next_time)
+  end
+  return next_time
 end
 
 --- @param #Job self
@@ -88,7 +93,9 @@ main = function(premature, self, ...)
     return self:finish(...)
   end
 
-  if now() >= get_next_time(self) then
+  local next_time = get_next_time(self)
+
+  if now() >= next_time then
     local counter = JOBS:incr(self.key .. ":counter", 1, -1)
     local ok, err = pcall(self.callback, { counter = counter,
                                            hup = self.pid == nil }, ...)
@@ -98,7 +105,10 @@ main = function(premature, self, ...)
     if not ok then
       ngx_log(WARN, self.key, ": ", err)
     end
-    set_next_time(self)
+    if get_next_time(self) == next_time then
+      -- next time may be changed from outside
+      set_next_time(self)
+    end
   end
 
   mtx:unlock()
@@ -135,6 +145,11 @@ function job:run(...)
   end
   ngx_log(DEBUG, "job ", self.key, " already completed")
   return nil, "completed"
+end
+
+--- @param #Job self
+function job:set_next(interval)
+  return set_next_time(self, interval)
 end
 
 --- @param #Job self
