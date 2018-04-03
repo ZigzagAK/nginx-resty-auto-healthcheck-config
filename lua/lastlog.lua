@@ -52,6 +52,16 @@ local function pull_statistic()
   local start_time, end_time = now(), 0
 
   -- request statistic
+  foreach_v(buffer.reqs_by_port or {}, function(port_data)
+    foreach_v(port_data, function(uri_data)
+      foreach(uri_data, function(status, stat)
+        start_time = min(stat.first, start_time)
+        end_time = max(stat.last, end_time)
+        uri_data[status] = tconcat( { stat.first, stat.last, stat.latency / stat.count, stat.count }, "|")
+      end)
+    end)
+  end)
+
   foreach_v(buffer.reqs or {}, function(uri_data)
     foreach(uri_data, function(status, stat)
       start_time = min(stat.first, start_time)
@@ -72,7 +82,7 @@ local function pull_statistic()
   local r = buffer
 
   buffer = {
-    reqs = {}, ups = {}
+    reqs = {}, reqs_by_port = {}, ups = {}
   }
 
   STAT:delete(buffer_key)
@@ -116,9 +126,9 @@ local function do_collect()
   local j = CONFIG:incr("$stat:last", 1, 0)
 
   while not STAT:object_add(j, { start_time = start_time,
-                                         end_time   = end_time,
-                                         stat       = stat },
-                                    collect_time_max)
+                                 end_time   = end_time,
+                                 stat       = stat },
+                            collect_time_max)
   do
     purge()
   end
@@ -162,7 +172,7 @@ local function merge(l, r)
 end
 
 local function get_statistic_impl(now, period)
-  local t = { reqs = {}, ups = {} }
+  local t = { reqs = {}, ups = {}, reqs_by_port = {} }
   local miss = 0
 
   for j = CONFIG:get("$stat:last") or 0, 0, -1
@@ -194,6 +204,10 @@ local function get_statistic_impl(now, period)
       merge(t.reqs, stat_j.stat.reqs)
     end
 
+    if stat_j.stat.reqs_by_port then
+      merge(t.reqs_by_port, stat_j.stat.reqs_by_port)
+    end
+
     if stat_j.stat.ups then
       merge(t.ups, stat_j.stat.ups)
     end
@@ -201,15 +215,49 @@ local function get_statistic_impl(now, period)
   end
 
   t = { ups  = { upstreams = t.ups, stat = {} },
-        reqs = { requests = t.reqs, stat = {} } }
-
-  local http_x = {}
+        reqs = { requests = t.reqs, stat = {} },
+        reqs_by_port = { requests = t.reqs_by_port, stat = {} } }
 
   -- request statistic
+
+  local http_x_by_port = {}
 
   local sum_latency = 0
   local sum_rps = 0
   local count = 0
+
+  foreach(t.reqs_by_port.requests, function(port, ports)
+    if not http_x_by_port[port] then
+      http_x_by_port[port] = {}
+    end
+    foreach(ports, function(uri, data)
+      local req_count = 0
+      foreach(data, function(status, stat)
+        stat.latency = (stat.latency or 0) / stat.recs
+        if not http_x_by_port[port][status] then
+          http_x_by_port[port][status] = {}
+        end
+        tinsert(http_x_by_port[port][status], { uri = uri or "?", stat = stat })
+        count = count + stat.count
+        req_count = req_count + stat.count
+        sum_rps = sum_rps + stat.current_rps
+        sum_latency = sum_latency + stat.latency * stat.count
+      end)
+      data.count = req_count
+    end)
+  end)
+
+  if count ~= 0 then
+    t.reqs_by_port.stat.average_latency = sum_latency / count
+  end
+  t.reqs_by_port.stat.average_rps = count / period
+  t.reqs_by_port.stat.current_rps = sum_rps
+
+  local http_x = {}
+
+  sum_latency = 0
+  sum_rps = 0
+  count = 0
 
   foreach(t.reqs.requests, function(uri, data)
     local req_count = 0
@@ -259,7 +307,7 @@ local function get_statistic_impl(now, period)
     tsort(reqs, function(l, r) return l.stat.latency > r.stat.latency end)
   end)
 
-  return t.reqs, t.ups, http_x, now, now + period
+  return t.reqs, t.ups, http_x, http_x_by_port, now, now + period
 end
 
 -- public api
@@ -280,10 +328,11 @@ function _M.get_statistic_table(period, portion, backward)
 
   for time = now() - (backward or 0) - (period or 60), now() - (backward or 0), portion or 60
   do
-    local reqs, ups, http_x, _, _ = get_statistic_impl(time, portion or 60)
+    local reqs, ups, http_x, http_x_by_port, _, _ = get_statistic_impl(time, portion or 60)
     tinsert(t, { requests_statistic = reqs,
                  upstream_staistic = ups,
                  http_x = http_x,
+                 http_x_by_port = http_x_by_port,
                  time = time } )
   end
   return t
@@ -294,10 +343,11 @@ function _M.get_statistic_table_from(start_time, period, portion)
 
   for time = start_time, start_time + (period or now() - start_time), portion or 60
   do
-    local reqs, ups, http_x, _, _ = get_statistic_impl(time, portion or 60)
+    local reqs, ups, http_x, http_x_by_port, _, _ = get_statistic_impl(time, portion or 60)
     tinsert(t, { requests_statistic = reqs,
                  upstream_staistic = ups,
                  http_x = http_x,
+                 http_x_by_port = http_x_by_port,
                  time = time } )
   end
   return t
@@ -349,7 +399,7 @@ end
 
 function _M.spawn_collector()
   buffer = STAT:object_get(buffer_key) or {
-    reqs = {}, ups = {}
+    reqs = {}, ups = {}, reqs_by_port = {}
   }
 
   id = worker_id()
@@ -358,7 +408,9 @@ function _M.spawn_collector()
   repeat
     local req = STAT_BUFFER:lpop(req_queue)
     if req then
-      local uri, status, start_time, request_time = req:match("(.+)|(.+)|(.+)|(.+)")
+      local port, uri, status, start_time, request_time = req:match("(.+)|(.+)|(.+)|(.+)|(.+)")
+      add_stat(gett(buffer.reqs_by_port, port, uri, status),
+               start_time, request_time)
       add_stat(gett(buffer.reqs, uri, status),
                start_time, request_time)
     end
@@ -394,7 +446,10 @@ local function rpush(key, ...)
 end
 
 function _M.add_uri_stat(uri, status, start_time, request_time)
-  rpush(req_queue, tconcat( { uri, status, start_time, request_time }, "|" ))
+  local port = ngx.var.server_port
+  rpush(req_queue, tconcat( { port, uri, status, start_time, request_time }, "|" ))
+  add_stat(gett(buffer.reqs_by_port, port, uri, status),
+           start_time, request_time)
   add_stat(gett(buffer.reqs, uri, status),
            start_time, request_time)
 end
