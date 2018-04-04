@@ -52,29 +52,21 @@ local function pull_statistic()
   local start_time, end_time = now(), 0
 
   -- request statistic
-  foreach_v(buffer.reqs_by_port or {}, function(port_data)
-    foreach_v(port_data, function(uri_data)
-      foreach(uri_data, function(status, stat)
+  foreach_v(buffer.reqs or {}, function(uri)
+    foreach(uri, function(status, ports)
+      foreach(ports, function(port, stat)  
         start_time = min(stat.first, start_time)
         end_time = max(stat.last, end_time)
-        uri_data[status] = tconcat( { stat.first, stat.last, stat.latency / stat.count, stat.count }, "|")
+        ports[port] = tconcat( { stat.first, stat.last, stat.latency / stat.count, stat.count }, "|")
       end)
     end)
   end)
 
-  foreach_v(buffer.reqs or {}, function(uri_data)
-    foreach(uri_data, function(status, stat)
-      start_time = min(stat.first, start_time)
-      end_time = max(stat.last, end_time)
-      uri_data[status] = tconcat( { stat.first, stat.last, stat.latency / stat.count, stat.count }, "|")
-    end)
-  end)
-
   -- upstream statistic
-  foreach_v(buffer.ups or {}, function(upstream_data)
-    foreach_v(upstream_data, function(addr_data)
-      foreach(addr_data, function(status, stat)
-        addr_data[status] = tconcat( { stat.first, stat.last, stat.latency / stat.count, stat.count }, "|")
+  foreach_v(buffer.ups or {}, function(upstream)
+    foreach_v(upstream, function(addr)
+      foreach(addr, function(status, stat)
+        addr[status] = tconcat( { stat.first, stat.last, stat.latency / stat.count, stat.count }, "|")
       end)
     end)
   end)
@@ -82,7 +74,7 @@ local function pull_statistic()
   local r = buffer
 
   buffer = {
-    reqs = {}, reqs_by_port = {}, ups = {}
+    reqs = {}, ups = {}
   }
 
   STAT:delete(buffer_key)
@@ -204,10 +196,6 @@ local function get_statistic_impl(now, period)
       merge(t.reqs, stat_j.stat.reqs)
     end
 
-    if stat_j.stat.reqs_by_port then
-      merge(t.reqs_by_port, stat_j.stat.reqs_by_port)
-    end
-
     if stat_j.stat.ups then
       merge(t.ups, stat_j.stat.ups)
     end
@@ -215,64 +203,38 @@ local function get_statistic_impl(now, period)
   end
 
   t = { ups  = { upstreams = t.ups, stat = {} },
-        reqs = { requests = t.reqs, stat = {} },
-        reqs_by_port = { requests = t.reqs_by_port, stat = {} } }
+        reqs = { requests = t.reqs, stat = {} } }
 
   -- request statistic
 
-  local http_x_by_port = {}
+  local http_x = {}
 
   local sum_latency = 0
   local sum_rps = 0
   local count = 0
 
-  foreach(t.reqs_by_port.requests, function(port, ports)
-    if not http_x_by_port[port] then
-      http_x_by_port[port] = {}
-    end
-    foreach(ports, function(uri, data)
-      local req_count = 0
-      foreach(data, function(status, stat)
-        stat.latency = (stat.latency or 0) / stat.recs
-        if not http_x_by_port[port][status] then
-          http_x_by_port[port][status] = {}
-        end
-        tinsert(http_x_by_port[port][status], { uri = uri or "?", stat = stat })
-        count = count + stat.count
-        req_count = req_count + stat.count
-        sum_rps = sum_rps + stat.current_rps
-        sum_latency = sum_latency + stat.latency * stat.count
-      end)
-      data.count = req_count
-    end)
-  end)
-
-  if count ~= 0 then
-    t.reqs_by_port.stat.average_latency = sum_latency / count
-  end
-  t.reqs_by_port.stat.average_rps = count / period
-  t.reqs_by_port.stat.current_rps = sum_rps
-
-  local http_x = {}
-
-  sum_latency = 0
-  sum_rps = 0
-  count = 0
-
-  foreach(t.reqs.requests, function(uri, data)
+  foreach(t.reqs.requests, function(uri, uri_data)
     local req_count = 0
-    foreach(data, function(status, stat)
-      stat.latency = (stat.latency or 0) / stat.recs
+    foreach(uri_data, function(status, ports)
       if not http_x[status] then
         http_x[status] = {}
       end
-      tinsert(http_x[status], { uri = uri or "?", stat = stat })
-      count = count + stat.count
-      req_count = req_count + stat.count
-      sum_rps = sum_rps + stat.current_rps
-      sum_latency = sum_latency + stat.latency * stat.count
+      local c = 0
+      foreach(ports, function(port, stat)
+        stat.latency = (stat.latency or 0) / stat.recs
+        if not http_x[status][port] then
+          http_x[status][port] = {}
+        end
+        http_x[status][port][uri] = stat
+        count = count + stat.count
+        c = c + stat.count
+        sum_rps = sum_rps + stat.current_rps
+        sum_latency = sum_latency + stat.latency * stat.count
+      end)
+      req_count = req_count + c
+      ports.count = c
     end)
-    data.count = req_count
+    uri_data.count = req_count
   end)
 
   if count ~= 0 then
@@ -302,52 +264,143 @@ local function get_statistic_impl(now, period)
     t.ups.stat[u].current_rps = sum_rps
   end)
 
-  -- sort by latency desc
-  foreach_v(http_x, function(reqs)
-    tsort(reqs, function(l, r) return l.stat.latency > r.stat.latency end)
-  end)
-
-  return t.reqs, t.ups, http_x, http_x_by_port, now, now + period
+  return t.reqs, t.ups, http_x, now, now + period
 end
 
 -- public api
 
-function _M.get_statistic(period, backward)
+function _M.collapse_ports(requests, http_x)
+  local noports = {
+    requests = {},
+    http_x = {}
+  }
+  local now = ngx.now()
+
+  foreach(requests, function(uri, ports)
+    local agg = {
+      first = now,
+      last = 0,
+      latency = 0,
+      count = 0,
+      recs = 0,
+      current_rps = 0
+    }
+    local ports_n = 0
+    foreach_v(ports, function(list)
+      if type(list) == "table" then
+        foreach_v(list, function(stat)
+          if type(stat) == "table" then
+            agg.first = min(agg.first, stat.first)
+            agg.last = max(agg.last, stat.last)
+            agg.latency = agg.latency + stat.latency
+            agg.count = agg.count + stat.count
+            agg.recs = agg.recs + stat.recs
+            agg.current_rps = agg.current_rps + stat.current_rps
+          end
+        end)
+        ports_n = ports_n + 1
+      end
+    end)
+    if ports_n ~= 0 then
+      agg.latency = agg.latency / ports_n;
+      noports.requests[uri] = agg
+    end
+  end)
+
+  -- sort by latency desc
+  foreach_v(noports.requests, function(by_uri)
+    tsort(by_uri, function(l, r) return l.latency > r.latency end)
+  end)
+
+  foreach(http_x, function(status, ports)
+    local agg = {}
+    local ports_n = 0
+    foreach_v(ports, function(by_uri)
+      if type(by_uri) == "table" then
+        foreach(by_uri, function(uri, stat)
+          local agg_by_uri = agg[uri]
+          if not agg_by_uri then
+            agg_by_uri = {
+              first = now,
+              last = 0,
+              latency = 0,
+              count = 0,
+              recs = 0,
+              current_rps = 0
+            }
+            agg[uri] = agg_by_uri
+          end
+          agg_by_uri.first = min(agg_by_uri.first, stat.first)
+          agg_by_uri.last = max(agg_by_uri.last, stat.last)
+          agg_by_uri.latency = agg_by_uri.latency + stat.latency
+          agg_by_uri.count = agg_by_uri.count + stat.count
+          agg_by_uri.recs = agg_by_uri.recs + stat.recs
+          agg_by_uri.current_rps = agg_by_uri.current_rps + stat.current_rps
+        end)
+        ports_n = ports_n + 1
+      end
+    end)
+    if ports_n ~= 0 then
+      noports.http_x[status] = agg
+    end
+  end)
+
+  -- sort by latency desc
+  foreach_v(noports.http_x, function(by_status)
+    tsort(by_status, function(l, r) return l.latency > r.latency end)
+  end)
+
+  return noports.requests, noports.http_x
+end
+
+function _M.get_statistic(period, backward, withports)
   update_time()
-  return get_statistic_impl(now() - (backward or 0) - (period or 60), period or 60)
+  local reqs, ups, http_x, from, to = get_statistic_impl(now() - (backward or 0) - (period or 60), period or 60)
+  if not withports then
+    reqs.requests, http_x = _M.collapse_ports(reqs.requests, http_x)
+  end
+  return reqs, ups, http_x, from, to
 end
 
-function _M.get_statistic_from(start_time, period)
-  return get_statistic_impl(start_time, period or (now() - start_time))
+function _M.get_statistic_from(start_time, period, withports)
+  local reqs, ups, http_x, from, to = get_statistic_impl(start_time, period or (now() - start_time))
+  if not withports then
+    reqs.requests, http_x = _M.collapse_ports(reqs.requests, http_x)
+  end
+  return reqs, ups, http_x, from, to
 end
 
-function _M.get_statistic_table(period, portion, backward)
+function _M.get_statistic_table(period, portion, backward, withports)
   local t = {}
 
   update_time()
 
   for time = now() - (backward or 0) - (period or 60), now() - (backward or 0), portion or 60
   do
-    local reqs, ups, http_x, http_x_by_port, _, _ = get_statistic_impl(time, portion or 60)
+    local reqs, ups, http_x, _, _ = get_statistic_impl(time, portion or 60)
+    if not withports then
+      reqs.requests, http_x = _M.collapse_ports(reqs.requests, http_x)
+    end
     tinsert(t, { requests_statistic = reqs,
                  upstream_staistic = ups,
                  http_x = http_x,
-                 http_x_by_port = http_x_by_port,
                  time = time } )
   end
   return t
 end
 
-function _M.get_statistic_table_from(start_time, period, portion)
+function _M.get_statistic_table_from(start_time, period, portion, withports)
   local t = {}
 
   for time = start_time, start_time + (period or now() - start_time), portion or 60
   do
-    local reqs, ups, http_x, http_x_by_port, _, _ = get_statistic_impl(time, portion or 60)
+    local reqs, ups, http_x, _, _ = get_statistic_impl(time, portion or 60)
+    if not withports then
+      reqs.requests, http_x = _M.collapse_ports(reqs.requests, http_x)
+    end
     tinsert(t, { requests_statistic = reqs,
-                 upstream_staistic = ups,
                  http_x = http_x,
-                 http_x_by_port = http_x_by_port,
+                 upstream_staistic = ups,
                  time = time } )
   end
   return t
@@ -399,7 +452,7 @@ end
 
 function _M.spawn_collector()
   buffer = STAT:object_get(buffer_key) or {
-    reqs = {}, ups = {}, reqs_by_port = {}
+    reqs = {}, ups = {}
   }
 
   id = worker_id()
@@ -408,10 +461,8 @@ function _M.spawn_collector()
   repeat
     local req = STAT_BUFFER:lpop(req_queue)
     if req then
-      local port, uri, status, start_time, request_time = req:match("(.+)|(.+)|(.+)|(.+)|(.+)")
-      add_stat(gett(buffer.reqs_by_port, port, uri, status),
-               start_time, request_time)
-      add_stat(gett(buffer.reqs, uri, status),
+      local uri, status, start_time, request_time, port = req:match("(.+)|(.+)|(.+)|(.+)|(.+)")
+      add_stat(gett(buffer.reqs, uri, status, port),
                start_time, request_time)
     end
   until not req
@@ -448,9 +499,7 @@ end
 function _M.add_uri_stat(uri, status, start_time, request_time)
   local port = ngx.var.server_port
   rpush(req_queue, tconcat( { port, uri, status, start_time, request_time }, "|" ))
-  add_stat(gett(buffer.reqs_by_port, port, uri, status),
-           start_time, request_time)
-  add_stat(gett(buffer.reqs, uri, status),
+  add_stat(gett(buffer.reqs, uri, status, port),
            start_time, request_time)
 end
 

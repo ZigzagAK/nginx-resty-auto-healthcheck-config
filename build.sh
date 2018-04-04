@@ -195,6 +195,15 @@ function download_pcre() {
   fi
 }
 
+download_debug() {
+  cd debug
+
+  download_module pkulchenko  MobDebug   master
+  download_module diegonehab  luasocket  master
+
+  cd ..
+}
+
 function extract_downloads() {
   cd download
 
@@ -204,14 +213,22 @@ function extract_downloads() {
     tar zxf $d -C ../build --no-overwrite-dir --keep-old-files 2>/dev/null
   done
 
+  for d in $(ls -1 debug/*.tar.gz)
+  do
+    echo "Extracting $d"
+    tar zxf $d -C ../build/debug --no-overwrite-dir --keep-old-files 2>/dev/null
+  done
+
   cd ..
 }
 
 function download() {
   mkdir build                2>/dev/null
+  mkdir build/debug          2>/dev/null
   mkdir build/deps           2>/dev/null
 
   mkdir download             2>/dev/null
+  mkdir download/debug       2>/dev/null
   mkdir download/lua_modules 2>/dev/null
 
   cd download
@@ -229,6 +246,8 @@ function download() {
   download_module ZigzagAK    lua_int64                        master
   download_module openresty   echo-nginx-module                master
 
+  download_debug
+
   cd ..
 }
 
@@ -245,6 +264,26 @@ function install_files() {
   do
     install_file $f $2 $3
   done
+}
+
+function build_lua_debug() {
+  cd debug
+
+  cd luasocket
+
+  MYCFLAGS=-I$LUAJIT_INC MYLDFLAGS=-L$LUAJIT_LIB make >/dev/null 2>/dev/null
+  prefix=$(pwd)/install_dir make install >/dev/null 2>&1
+
+  cd install_dir
+
+  install_file lib/lua/*/socket       debug/clibs
+  install_file share/lua/*/socket.lua debug
+
+  cd ../..
+
+  install_file MobDebug/src/mobdebug.lua debug
+
+  cd ..
 }
 
 function build() {
@@ -268,6 +307,8 @@ function build() {
   install_file  lua_int64/int64.so                    lib/lua/5.1
   install_file  "lua_int64/liblua_int64.so"           lib
   install_file  "ngx_dynamic_upstream_lua/lib"        .
+
+  build_lua_debug
 
   cd ..
 }
@@ -341,6 +382,7 @@ function install_lua_modules() {
   install_file scripts/restart.sh                   .
   install_file lua                                  .
   install_file conf                                 .
+  install_file debug/rmdebug.lua                    debug
 }
 
 install_lua_modules
