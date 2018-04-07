@@ -14,7 +14,7 @@ function _M.preprocess_uri_stub(uri)
 end
 
 function _M.config()
-  CONFIG:set("http.stat.collect_time_min", 1)
+  CONFIG:set("http.stat.collect_time_min", 10)
   CONFIG:set("http.stat.collect_time_max", 7200)
   CONFIG:set("http.stat.preprocess_uri", "sysconfig.01-stat.preprocess_uri_stub")
 end
