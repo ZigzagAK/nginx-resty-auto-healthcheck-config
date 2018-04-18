@@ -28,6 +28,15 @@ export LUAJIT_LIB="$JIT_PREFIX/usr/local/lib"
 
 export LD_LIBRARY_PATH="$JIT_PREFIX/lib"
 
+shared="so"
+
+current_os=`uname`
+if [ "$current_os" = "Darwin" ]; then
+  arch=`uname -m`
+  vendor="apple"
+  shared="dylib"
+fi
+
 function clean() {
   rm -rf install  2>/dev/null
   rm -rf $(ls -1d build/* 2>/dev/null | grep -v deps)    2>/dev/null
@@ -44,7 +53,7 @@ fi
 function build_luajit() {
   echo "Build luajit"
   cd LuaJIT-$LUAJIT_VERSION
-  make -j 8 > /dev/null
+  make > /dev/null
   r=$?
   if [ $r -ne 0 ]; then
     exit $r
@@ -67,7 +76,7 @@ function build_int64() {
 function build_cJSON() {
   echo "Build cjson" | tee -a $BUILD_LOG
   cd lua-cjson
-  LUA_INCLUDE_DIR="$JIT_PREFIX/usr/local/include/luajit-2.1" WITH_INT64="${DIR}/build/lua_int64" make > /dev/null
+  LUA_INCLUDE_DIR="$JIT_PREFIX/usr/local/include/luajit-2.1" WITH_INT64="${DIR}/build/lua_int64" LDFLAGS="-L$JIT_PREFIX/usr/local/lib -lluajit-5.1" make > /dev/null
   r=$?
   if [ $r -ne 0 ]; then
     exit $r
@@ -210,13 +219,13 @@ function extract_downloads() {
   for d in $(ls -1 *.tar.gz)
   do
     echo "Extracting $d"
-    tar zxf $d -C ../build --no-overwrite-dir --keep-old-files 2>/dev/null
+    tar zxf $d -C ../build --no-overwrite-dir 2>/dev/null
   done
 
   for d in $(ls -1 debug/*.tar.gz)
   do
     echo "Extracting $d"
-    tar zxf $d -C ../build/debug --no-overwrite-dir --keep-old-files 2>/dev/null
+    tar zxf $d -C ../build/debug --no-overwrite-dir 2>/dev/null
   done
 
   cd ..
@@ -305,7 +314,7 @@ function build() {
   install_file  "$JIT_PREFIX/usr/local/lib"           .
   install_file  lua-cjson/cjson.so                    lib/lua/5.1
   install_file  lua_int64/int64.so                    lib/lua/5.1
-  install_file  "lua_int64/liblua_int64.so"           lib
+  install_file  "lua_int64/liblua_int64.$shared"      lib
   install_file  "ngx_dynamic_upstream_lua/lib"        .
 
   build_lua_debug

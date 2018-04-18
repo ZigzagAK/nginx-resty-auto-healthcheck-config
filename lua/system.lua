@@ -40,18 +40,42 @@ end
 ffi.cdef[[
   struct DIR *opendir(const char *name);
   int closedir(struct DIR *dirp);
+]]
 
-  typedef unsigned long int ino_t;
-  typedef long int          off_t;
+if ffi.os == "Linux" then
+  ffi.cdef[[
+    typedef unsigned long int ino_t;
+    typedef long int          off_t;
 
-  struct dirent
-  {
-    ino_t              d_ino;
-    off_t              d_off;
-    unsigned short int d_reclen;
-    unsigned char      d_type;
-    char               d_name[256];
-  };
+    struct dirent
+    {
+      ino_t              d_ino;
+      off_t              d_off;
+      unsigned short int d_reclen;
+      unsigned char      d_type;
+      char               d_name[256];
+    };
+  ]]
+elseif ffi.os == "OSX" then
+  ffi.cdef[[
+    typedef unsigned int ino_t;
+
+    #pragma pack(4)
+
+    struct dirent
+    {
+      ino_t              d_ino;
+      unsigned short     d_reclen;
+      unsigned char      d_type;
+      unsigned char      d_namlen;
+      char               d_name[256];
+    };
+  ]]
+else
+  error("Unsupported OS: " .. ffi.os)
+end
+
+ffi.cdef[[
   struct dirent *readdir(struct DIR *dirp);
 ]]
 
