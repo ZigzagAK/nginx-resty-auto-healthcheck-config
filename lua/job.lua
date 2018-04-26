@@ -108,8 +108,6 @@ main = function(premature, self, ...)
     local ok, err = pcall(self.callback, { counter = counter,
                                            hup = self.pid == nil }, ...)
 
-    ngx_log(DEBUG, "job ", self.key, " counter=", counter)
-
     if not self.pid then
       self.pid = worker_pid()
     end
