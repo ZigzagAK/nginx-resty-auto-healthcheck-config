@@ -1,5 +1,5 @@
 local _M = {
-  _VERSION = "1.8.5",
+  _VERSION = "1.9.0",
 
   signal = {
     SIGHUP  = 1,
@@ -81,17 +81,22 @@ ffi.cdef[[
 
 local assert = assert
 local tinsert, tsort = table.insert, table.sort
+local tonumber = tonumber
+
+local function is_null(p)
+  return tonumber(ffi.cast('intptr_t', p)) == 0
+end
 
 local function scandir(dirname)
   local dir = C.opendir(dirname)
-  if not dir then
+  if is_null(dir) then
     return {}
   end
 
   local entries = {}
   local dirent = C.readdir(dir)
 
-  while dirent ~= nil do
+  while not is_null(dirent) do
     tinsert(entries, ffi.string(dirent.d_name))
     dirent = C.readdir(dir)
   end
