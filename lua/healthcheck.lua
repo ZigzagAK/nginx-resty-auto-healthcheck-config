@@ -1,5 +1,5 @@
 local _M = {
-  _VERSION = "1.8.7"
+  _VERSION = "1.10.0"
 }
 
 local CONFIG = ngx.shared.config
@@ -18,6 +18,7 @@ local function init_healthcheck(mod, opts)
   opts.healthcheck.fall = CONFIG:get("healthcheck.fall") or 2
   opts.healthcheck.rise = CONFIG:get("healthcheck.rise") or 2
   opts.healthcheck.timeout = CONFIG:get("healthcheck.timeout") or 1000
+  opts.healthcheck.keepalive_requests = CONFIG:get("healthcheck.keepalive_requests") or 1
 
   opts.check_all = CONFIG:get("healthcheck.all")
   if opts.check_all == nil then
