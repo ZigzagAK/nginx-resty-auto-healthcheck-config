@@ -252,10 +252,10 @@ function download() {
   download_module ZigzagAK    ngx_dynamic_upstream             master
   download_module ZigzagAK    ngx_dynamic_upstream_lua         master
   download_module ZigzagAK    ngx_dynamic_healthcheck          master
-  download_module openresty   stream-lua-nginx-module          master
+  download_module ZigzagAK    stream-lua-nginx-module          mixed
   download_module simpl       ngx_devel_kit                    master
   download_module ZigzagAK    lua-nginx-module                 mixed
-  download_module openresty   lua-cjson                        master
+  download_module ZigzagAK    lua-cjson                        master
   download_module ZigzagAK    lua_int64                        master
   download_module openresty   echo-nginx-module                master
 
