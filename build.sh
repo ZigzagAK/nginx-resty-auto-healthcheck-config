@@ -11,7 +11,7 @@ build_deps=0
 
 DIR="$(pwd)"
 
-VERSION="1.13.6"
+VERSION="1.13.12"
 PCRE_VERSION="8.39"
 LUAJIT_VERSION="2.1.0-beta2"
 
@@ -93,13 +93,14 @@ function build_debug() {
               --with-stream \
               --with-debug \
               --with-http_auth_request_module \
-              --with-cc-opt="-O0" \
+              --with-cc-opt="-O0 -D_WITH_LUA_API" \
               --add-module=../ngx_devel_kit \
               --add-module=../lua-nginx-module \
               --add-module=../echo-nginx-module \
               --add-module=../stream-lua-nginx-module \
               --add-module=../ngx_dynamic_upstream \
-              --add-module=../ngx_dynamic_upstream_lua > /dev/null 2>/dev/stderr
+              --add-module=../ngx_dynamic_upstream_lua \
+              --add-module=../ngx_dynamic_healthcheck > /dev/null 2>/dev/stderr
 
   r=$?
   if [ $r -ne 0 ]; then
@@ -124,6 +125,7 @@ function build_release() {
   echo "Configuring release nginx-$VERSION$SUFFIX"
   ./configure --prefix="$INSTALL_PREFIX/nginx-$VERSION$SUFFIX" \
               --with-pcre=$PCRE_PREFIX \
+              --with-cc-opt="-D_WITH_LUA_API" \
               --with-http_stub_status_module \
               --with-stream \
               --with-http_auth_request_module \
@@ -132,7 +134,8 @@ function build_release() {
               --add-module=../echo-nginx-module \
               --add-module=../stream-lua-nginx-module \
               --add-module=../ngx_dynamic_upstream \
-              --add-module=../ngx_dynamic_upstream_lua > /dev/null 2>/dev/stderr
+              --add-module=../ngx_dynamic_upstream_lua \
+              --add-module=../ngx_dynamic_healthcheck > /dev/null 2>/dev/stderr
 
 
   r=$?
@@ -248,6 +251,7 @@ function download() {
 
   download_module ZigzagAK    ngx_dynamic_upstream             master
   download_module ZigzagAK    ngx_dynamic_upstream_lua         master
+  download_module ZigzagAK    ngx_dynamic_healthcheck          master
   download_module openresty   stream-lua-nginx-module          master
   download_module simpl       ngx_devel_kit                    master
   download_module ZigzagAK    lua-nginx-module                 mixed
@@ -265,7 +269,7 @@ function install_file() {
   if [ ! -e "$INSTALL_PREFIX/nginx-$VERSION$SUFFIX/$2" ]; then
     mkdir -p "$INSTALL_PREFIX/nginx-$VERSION$SUFFIX/$2"
   fi
-  cp -r $3 $1 "$INSTALL_PREFIX/nginx-$VERSION$SUFFIX/$2/"
+  cp -rL $3 $1 "$INSTALL_PREFIX/nginx-$VERSION$SUFFIX/$2/"
 }
 
 function install_files() {
@@ -305,8 +309,8 @@ function build() {
   build_int64
   build_cJSON
 
-  make clean > /dev/null 2>&1
-  build_debug
+#  make clean > /dev/null 2>&1
+#  build_debug
 
   make clean > /dev/null 2>&1
   build_release
