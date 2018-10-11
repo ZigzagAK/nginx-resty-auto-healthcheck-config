@@ -26,41 +26,59 @@ local function set_upstream(upstream_name, upstream_fun, fun)
 end
 
 local function set_upstream_primary(mod, name, fun)
-  set_upstream(name, mod.get_primary_peers, fun)
+  set_upstream(name, mod.upstream.get_primary_peers, fun)
 end
 
 local function set_upstream_backup(mod, name, fun)
-  set_upstream(name, mod.get_backup_peers, fun)
+  set_upstream(name, mod.upstream.get_backup_peers, fun)
 end
 
 local function disable_peer(mod, b)
   return function(upstream, peer)
-    return mod.disable_host(peer, b, upstream)
+    local dynamic = mod.healthcheck.get(upstream)
+    if dynamic then
+      mod.healthcheck.disable_host(peer, b, upstream)
+    end
+    if b then
+      mod.upstream.set_peer_down(upstream, peer)
+    else
+      if not dynamic then
+        mod.upstream.set_peer_up(upstream, peer)
+      end
+    end
   end
 end
 
 local function disable(mod, b)
   return function(upstream)
-    return mod.disable(upstream, b)
+    local dynamic = mod.healthcheck.get(upstream)
+    if dynamic then
+      mod.healthcheck.disable(upstream, b)
+    end
+    set_upstream(upstream, mod.upstream.get_peers, function(upstream, peer)
+      if b then
+        mod.upstream.set_peer_down(upstream, peer)
+      else
+        if not dynamic then
+          mod.upstream.set_peer_up(upstream, peer)
+        end
+      end
+    end)
   end
 end
 
 local function disable_ip(mod, b)
   return function(ip)
-    for u, groups in pairs(assert(mod.status()))
+    local ok, upstreams, err = mod.upstream.get_upstreams()
+    assert(ok, err)
+    for _,u in ipairs(upstreams)
     do
-      for peer, status in pairs(groups.primary)
+      local ok, peers, err = mod.upstream.get_peers(u)
+      assert(ok, err)
+      for _, peer in ipairs(peers)
       do
-        if peer:match("^" .. ip) then
-          mod.disable_host(peer, b, u)
-        end
-      end
-      if groups.backup then
-      for peer, status in pairs(groups.backup)
-        do
-          if peer:match("^" .. ip) then
-            mod.disable_host(peer, b, u)
-          end
+        if peer.name:match("^" .. ip) then
+          disable_peer(mod, b)(u, peer.name)
         end
       end
     end
@@ -70,31 +88,31 @@ end
 local function make_mod(mod)
   return {
     enable_peer = function(upstream, peer)
-      set_peer(upstream, peer, disable_peer(mod.healthcheck, false))
+      set_peer(upstream, peer, disable_peer(mod, false))
     end,
     disable_peer = function(upstream, peer)
-      set_peer(upstream, peer, disable_peer(mod.healthcheck, true))
+      set_peer(upstream, peer, disable_peer(mod, true))
     end,
     enable_primary_peers = function(upstream)
-      set_upstream_primary(mod.upstream, upstream, disable_peer(mod.healthcheck, false))
+      set_upstream_primary(mod.upstream, upstream, disable_peer(mod, false))
     end,
     disable_primary_peers = function(upstream)
-      set_upstream_primary(mod.upstream, upstream, disable_peer(mod.healthcheck, true))
+      set_upstream_primary(mod.upstream, upstream, disable_peer(mod, true))
     end,
     enable_backup_peers = function(upstream)
-      set_upstream_backup(mod.upstream, upstream, disable_peer(mod.healthcheck, false))
+      set_upstream_backup(mod.upstream, upstream, disable_peer(mod, false))
     end,
     disable_backup_peers = function(upstream)
-      set_upstream_backup(mod.upstream, upstream, disable_peer(mod.healthcheck, true))
+      set_upstream_backup(mod.upstream, upstream, disable_peer(mod, true))
     end,
     enable_upstream = function(upstream)
-      mod.healthcheck.disable(upstream, false)
+      disable(mod, false)(upstream)
     end,
     disable_upstream = function(upstream)
-      mod.healthcheck.disable(upstream, true)
+      disable(mod, true)(upstream)
     end,
-    enable_ip = disable_ip(mod.healthcheck, false),
-    disable_ip = disable_ip(mod.healthcheck, true)
+    enable_ip = disable_ip(mod, false),
+    disable_ip = disable_ip(mod, true)
   }
 end
 
