@@ -457,7 +457,8 @@ function _M.new(name)
     __caches = {
       count = 0,
       data = {}
-    }
+    },
+    name = name
   }
 
   local data = dict.__caches.data

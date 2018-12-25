@@ -1,5 +1,5 @@
 local _M = {
-  _VERSION = "1.8.6"
+  _VERSION = "2.1.0"
 }
 
 local system = require "system"
@@ -71,7 +71,7 @@ function lib.find_if_i(t, f)
   local v
   for i=1,#t do
     v = t[i]
-    if f(v) then
+    if f(v, i) then
       return { v, i }
     end
   end
@@ -86,12 +86,16 @@ function lib.load_modules(path, opts)
     if not mod then
       opts.logfun(ERR, short_name, "error: ", err)
     else
-      local fun = opts.getfun(mod)
-      if fun then
-        tinsert(result, { short_name, fun })
-        opts.logfun(INFO, short_name, "success")
+      if opts.getfun then
+        local fun = opts.getfun(mod)
+        if fun then
+          tinsert(result, { short_name, fun })
+          opts.logfun(INFO, short_name, "success")
+        else
+          package.loaded[name] = nil
+        end
       else
-        package.loaded[name] = nil
+        opts.logfun(INFO, short_name, "success")
       end
     end
   end)

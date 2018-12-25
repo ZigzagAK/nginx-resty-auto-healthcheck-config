@@ -14,7 +14,7 @@ local worker_exiting = ngx.worker.exiting
 local timer_at = ngx.timer.at
 local ngx_log = ngx.log
 local INFO, ERR, WARN, DEBUG = ngx.INFO, ngx.ERR, ngx.WARN, ngx.DEBUG
-local pcall, setmetatable = pcall, setmetatable
+local xpcall, setmetatable = xpcall, setmetatable
 local worker_pid = ngx.worker.pid
 local tinsert = table.insert
 local assert = assert
@@ -105,8 +105,10 @@ main = function(premature, self, ...)
 
   if now() >= next_time then
     local counter = JOBS:incr(make_key(self, "counter"), 1, -1)
-    local ok, err = pcall(self.callback, { counter = counter,
-                                           hup = self.pid == nil }, ...)
+    local ok, err = xpcall(self.callback, function(err)
+      ngx.log(ngx.ERR, debug.traceback())
+      return err
+    end, { counter = counter, hup = self.pid == nil }, ...)
 
     if not self.pid then
       self.pid = worker_pid()

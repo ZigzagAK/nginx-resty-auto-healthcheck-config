@@ -1,5 +1,5 @@
 local _M = {
-  _VERSION = "1.8.5"
+  _VERSION = "2.1.0"
 }
 
 local load_modules = lib.load_modules
@@ -9,6 +9,18 @@ local module_type = lib.module_type()
 
 local ngx_log = ngx.log
 local INFO = ngx.INFO
+
+local function init_globals()
+  ngx_log(INFO, "[", module_type ,"] globals")
+
+  local modules = load_modules("lua/globals", {
+    logfun = function(level, name, ...)
+      ngx_log(level, "[", module_type ,"] loading ", name, " ", ...)
+    end
+  })
+
+  ngx_log(INFO, "[", module_type ,"]", " init globals finish")
+end
 
 local function init_sysconfig()
   ngx_log(INFO, "[", module_type ,"] configuring modules")
@@ -49,6 +61,7 @@ local function initd()
 end
 
 function _M.sysconfig()
+  init_globals()
   init_sysconfig()
 end
 

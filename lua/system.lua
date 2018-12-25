@@ -1,5 +1,5 @@
 local _M = {
-  _VERSION = "1.9.0",
+  _VERSION = "2.1.0",
 
   signal = {
     SIGHUP  = 1,
@@ -126,8 +126,8 @@ function _M.getmodules(directory, type)
     local f = assert(io.open(directory .. "/" .. file_name))
     local content = f:read("*a")
     f:close()
-    local mod_type = content:match([[_MODULE_TYPE%s*=%s*["']?([^"']+)["']?]]) or "http"
-    if mod_type:lower() == type:lower() then
+    local mod_type = content:match [[_MODULE_TYPE%s*=%s*["']?([^"']+)["']?]] or "http"
+    if mod_type:lower() == type:lower() or mod_type:lower() == "both" then
       local name = file_name:match("(.+)%.lua$")
       tinsert(modules, { name, mod_prefix .. "." .. name })
     end
