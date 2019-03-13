@@ -71,14 +71,17 @@ local function disable_ip(mod, b)
   return function(ip)
     local ok, upstreams, err = mod.upstream.get_upstreams()
     assert(ok, err)
-    for _,u in ipairs(upstreams)
+    for _,upstream in ipairs(upstreams)
     do
-      local ok, peers, err = mod.upstream.get_peers(u)
-      assert(ok, err)
-      for _, peer in ipairs(peers)
-      do
-        if peer.name:match("^" .. ip) then
-          disable_peer(mod, b)(u, peer.name)
+      local dynamic = mod.healthcheck.get(upstream)
+      if dynamic then
+        mod.healthcheck.disable_host(ip, b, upstream)
+      end
+      if b then
+        mod.upstream.set_peer_down(upstream, ip)
+      else
+        if not dynamic then
+          mod.upstream.set_peer_up(upstream, ip)
         end
       end
     end
