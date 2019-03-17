@@ -17,7 +17,7 @@ This module has several dependencies:
 * [ngx_dynamic_upstream](https://github.com/ZigzagAK/ngx_dynamic_upstream)
 * [ngx_dynamic_upstream_lua](https://github.com/ZigzagAK/ngx_dynamic_upstream_lua)
 * [ngx_dynamic_healthcheck](https://github.com/ZigzagAK/ngx_dynamic_healthcheck)
-* [stream-lua-nginx-module](https://github.com/ZigzagAK/stream-lua-nginx-module)
+* [stream-lua-nginx-module](https://github.com/openresty/stream-lua-nginx-module)
 * [lua-cjson](https://github.com/openresty/lua-cjson)
 * [lua-resty-lock](https://github.com/openresty/lua-resty-lock)
 * [lua-resty-core](https://github.com/openresty/lua-resty-core)

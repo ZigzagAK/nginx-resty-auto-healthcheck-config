@@ -11,9 +11,8 @@ build_deps=0
 
 DIR="$(pwd)"
 
-VERSION="1.13.12"
+VERSION="1.15.6"
 PCRE_VERSION="8.39"
-LUAJIT_VERSION="2.1.0-beta2"
 
 SUFFIX=""
 
@@ -52,7 +51,7 @@ fi
 
 function build_luajit() {
   echo "Build luajit"
-  cd LuaJIT-$LUAJIT_VERSION
+  cd luajit2
   make > /dev/null
   r=$?
   if [ $r -ne 0 ]; then
@@ -98,6 +97,7 @@ function build_debug() {
               --add-module=../lua-nginx-module \
               --add-module=../echo-nginx-module \
               --add-module=../stream-lua-nginx-module \
+              --add-module=../lua-shared-dict \
               --add-module=../ngx_dynamic_upstream \
               --add-module=../ngx_dynamic_upstream_lua \
               --add-module=../ngx_dynamic_healthcheck > /dev/null 2>/dev/stderr
@@ -133,6 +133,7 @@ function build_release() {
               --add-module=../lua-nginx-module \
               --add-module=../echo-nginx-module \
               --add-module=../stream-lua-nginx-module \
+              --add-module=../lua-shared-dict \
               --add-module=../ngx_dynamic_upstream \
               --add-module=../ngx_dynamic_upstream_lua \
               --add-module=../ngx_dynamic_healthcheck > /dev/null 2>/dev/stderr
@@ -155,21 +156,21 @@ function build_release() {
 }
 
 function download_module() {
-  if [ -e $DIR/../$2 ]; then
-    echo "Get $DIR/../$2"
-    dir=$(pwd)
-    cd $DIR/..
-    tar zcf $dir/$2.tar.gz $(ls -1d $2/* | grep -vE "(install$)|(build$)|(download$)|(.git$)")
-    cd $dir
+  if [ $download -eq 1 ] || [ ! -e $3.tar.gz ]; then
+    echo "Download $1/$2/$3.git from=$4"
+    git clone $1/$2/$3.git > /dev/null 2>&1
+    echo "$1/$2/$3.git" > $3.log
+    echo >> $3.log
+    cd $3
+    git checkout $4 > /dev/null 2>&1
+    echo $4" : "$(git log -1 --oneline | awk '{print $1}') >> ../$3.log
+    echo >> ../$3.log
+    git log -1 | grep -E "(^[Cc]ommit)|(^[Aa]uthor)|(^[Dd]ate)" >> ../$3.log
+    cd ..
+    tar zcf $3.tar.gz $3 > /dev/null 2>&1
+    rm -rf $3
   else
-    if [ $download -eq 1 ] || [ ! -e $2.tar.gz ]; then
-      echo "Download $2 branch=$3"
-      curl -s -L -O https://github.com/$1/$2/archive/$3.zip
-      unzip -q $3.zip
-      mv $2-$3 $2
-      tar zcf $2.tar.gz $2
-      rm -rf $2 $3.zip
-    fi
+    echo "Get $3" | tee -a $BUILD_LOG
   fi
 }
 
@@ -189,15 +190,6 @@ function download_nginx() {
   fi
 }
 
-function download_luajit() {
-  if [ $download -eq 1 ] || [ ! -e LuaJIT-$LUAJIT_VERSION.tar.gz ]; then
-    echo "Download LuaJIT-$LUAJIT_VERSION"
-    curl -s -L -O http://luajit.org/download/LuaJIT-$LUAJIT_VERSION.tar.gz
-  else
-    echo "Get LuaJIT-$LUAJIT_VERSION.tar.gz"
-  fi
-}
-
 function download_pcre() {
   if [ $download -eq 1 ] || [ ! -e pcre-$PCRE_VERSION.tar.gz ]; then
     echo "Download PCRE-$PCRE_VERSION"
@@ -210,8 +202,8 @@ function download_pcre() {
 download_debug() {
   cd debug
 
-  download_module pkulchenko  MobDebug   master
-  download_module diegonehab  luasocket  master
+  download_module https://github.com pkulchenko  MobDebug   master
+  download_module https://github.com diegonehab  luasocket  master
 
   cd ..
 }
@@ -245,19 +237,20 @@ function download() {
 
   cd download
 
-  download_luajit
   download_pcre
   download_nginx
 
-  download_module ZigzagAK    ngx_dynamic_upstream             master
-  download_module ZigzagAK    ngx_dynamic_upstream_lua         master
-  download_module ZigzagAK    ngx_dynamic_healthcheck          master
-  download_module ZigzagAK    stream-lua-nginx-module          mixed
-  download_module simpl       ngx_devel_kit                    master
-  download_module ZigzagAK    lua-nginx-module                 mixed
-  download_module ZigzagAK    lua-cjson                        master
-  download_module ZigzagAK    lua_int64                        master
-  download_module openresty   echo-nginx-module                master
+  download_module https://github.com ZigzagAK    ngx_dynamic_upstream             master
+  download_module https://github.com ZigzagAK    ngx_dynamic_upstream_lua         master
+  download_module https://github.com ZigzagAK    ngx_dynamic_healthcheck          master
+  download_module https://github.com openresty   stream-lua-nginx-module          master
+  download_module https://github.com simpl       ngx_devel_kit                    master
+  download_module https://github.com openresty   lua-nginx-module                 master
+  download_module https://github.com ZigzagAK    lua-cjson                        mixed
+  download_module https://github.com ZigzagAK    lua_int64                        master
+  download_module https://github.com openresty   echo-nginx-module                master
+  download_module https://github.com openresty   luajit2                          v2.1-agentzh
+  download_module https://github.com ZigzagAK    lua-shared-dict                  master
 
   download_debug
 
@@ -319,7 +312,6 @@ function build() {
   install_file  lua-cjson/cjson.so                    lib/lua/5.1
   install_file  lua_int64/int64.so                    lib/lua/5.1
   install_file  "lua_int64/liblua_int64.$shared"      lib
-  install_file  "ngx_dynamic_upstream_lua/lib"        .
 
   build_lua_debug
 
@@ -399,8 +391,6 @@ function install_lua_modules() {
 }
 
 install_lua_modules
-
-cp LICENSE "$INSTALL_PREFIX/nginx-$VERSION$SUFFIX/LICENSE"
 
 cd "$DIR"
 
