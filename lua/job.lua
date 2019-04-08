@@ -1,5 +1,5 @@
 local _M = {
-  _VERSION = "1.9.0"
+  _VERSION = "2.2.1"
 }
 
 local lock  = require "resty.lock"
@@ -239,13 +239,11 @@ end
 
 --- @param #Job self
 function job:clean()
-  if not self:running(true) then
-    JOBS:delete(make_key(self, "running"))
-    JOBS:delete(make_key(self, "completed"))
-    JOBS:delete(make_key(self, "suspended"))
-    return true
-  end
-  return false
+  local retval = self:running(true)
+  JOBS:delete(make_key(self, "running"))
+  JOBS:delete(make_key(self, "completed"))
+  JOBS:delete(make_key(self, "suspended"))
+  return retval
 end
 
 return _M
