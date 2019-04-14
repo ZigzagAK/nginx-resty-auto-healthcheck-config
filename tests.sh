@@ -15,10 +15,12 @@ export LUA_CPATH=$DIR/install/tmp/$folder/lib/lua/5.1/cjson.so
 
 ret=0
 
+export TEST_NGINX_ROOT_DIR=$DIR
+
 for t in $(ls t/*.t)
 do
   echo "Tests : "$t
-  prove $t
+  prove $t $@
   if [ $? -ne 0 ]; then
     ret=$?
     exit $ret

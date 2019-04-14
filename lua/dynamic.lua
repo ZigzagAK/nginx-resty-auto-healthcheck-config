@@ -1,6 +1,10 @@
 local _M = {
-  _VERSION = "2.0.0"
+  _VERSION = "2.2.1"
 }
+
+local function foreachi(t, f)
+  for i=1,#t do f(t[i], i) end
+end
 
 local function check_throw(result, err)
   if not result then
@@ -20,7 +24,7 @@ local function set_upstream(upstream_name, upstream_fun, fun)
   check_throw(upstream_name, "upstream argument required")
   local ok, peers, err = upstream_fun(upstream_name)
   check_throw(ok, err)
-  lib.foreachi(peers, function(peer)
+  foreachi(peers, function(peer)
     fun(upstream_name, peer.name)
   end)
 end
@@ -71,8 +75,7 @@ local function disable_ip(mod, b)
   return function(ip)
     local ok, upstreams, err = mod.upstream.get_upstreams()
     assert(ok, err)
-    for _,upstream in ipairs(upstreams)
-    do
+    foreachi(upstreams, function(upstream)
       local dynamic = mod.healthcheck.get(upstream)
       if dynamic then
         mod.healthcheck.disable_host(ip, b, upstream)
@@ -84,7 +87,7 @@ local function disable_ip(mod, b)
           mod.upstream.set_peer_up(upstream, ip)
         end
       end
-    end
+    end)
   end
 end
 
@@ -97,16 +100,16 @@ local function make_mod(mod)
       set_peer(upstream, peer, disable_peer(mod, true))
     end,
     enable_primary_peers = function(upstream)
-      set_upstream_primary(mod.upstream, upstream, disable_peer(mod, false))
+      set_upstream_primary(mod, upstream, disable_peer(mod, false))
     end,
     disable_primary_peers = function(upstream)
-      set_upstream_primary(mod.upstream, upstream, disable_peer(mod, true))
+      set_upstream_primary(mod, upstream, disable_peer(mod, true))
     end,
     enable_backup_peers = function(upstream)
-      set_upstream_backup(mod.upstream, upstream, disable_peer(mod, false))
+      set_upstream_backup(mod, upstream, disable_peer(mod, false))
     end,
     disable_backup_peers = function(upstream)
-      set_upstream_backup(mod.upstream, upstream, disable_peer(mod, true))
+      set_upstream_backup(mod, upstream, disable_peer(mod, true))
     end,
     enable_upstream = function(upstream)
       disable(mod, false)(upstream)
