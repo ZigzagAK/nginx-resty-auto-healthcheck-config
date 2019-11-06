@@ -1,5 +1,5 @@
 local _M = {
-  _VERSION = "2.2.1"
+  _VERSION = "2.3.0"
 }
 
 local lock  = require "resty.lock"
@@ -165,6 +165,11 @@ function job:run(...)
   end
   ngx_log(DEBUG, "job ", self.key, " already completed")
   return nil, "completed"
+end
+
+--- @param #Job self
+function job:touch()
+  self.mutex:expire()
 end
 
 --- @param #Job self
