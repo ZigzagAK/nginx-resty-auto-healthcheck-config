@@ -1,5 +1,5 @@
 local _M = {
-  _VERSION = "2.3.0"
+  _VERSION = "2.3.1"
 }
 
 local lock  = require "resty.lock"
@@ -249,6 +249,13 @@ function job:clean()
   JOBS:delete(make_key(self, "completed"))
   JOBS:delete(make_key(self, "suspended"))
   return retval
+end
+
+--- @param #Job self
+function job:reset()
+  JOBS:delete(make_key(self, "completed"))
+  JOBS:delete(make_key(self, "suspended"))
+  return self:running(true)
 end
 
 return _M
