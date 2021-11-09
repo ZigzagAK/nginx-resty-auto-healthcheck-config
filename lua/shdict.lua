@@ -1,5 +1,5 @@
 local _M = {
-  _VERSION = "2.3.1"
+  _VERSION = "2.4.0"
 }
 
 local cjson = require "cjson"
@@ -450,6 +450,22 @@ function shdict_class:object_fun(key, fun, exptime)
     return object and json_encode(object) or nil, new_flags
   end, exptime or 0)
   return decode(value), flags
+end
+
+--- @param #ShDict self
+function shdict_class:safe_fun(key, fun, exptime)
+  key = make_key(key)
+  return self.shard(key):safe_fun(key, fun, exptime or 0)
+end
+
+--- @param #ShDict self
+function shdict_class:object_safe_fun(key, fun, exptime)
+  key = make_key(key)
+  local value, flags, err = self.shard(key):safe_fun(key, function(value, flags)
+    local object, new_flags = fun(decode(value), flags)
+    return object and json_encode(object) or nil, new_flags
+  end, exptime or 0)
+  return decode(value), flags, err
 end
 
 --- @param #string name
